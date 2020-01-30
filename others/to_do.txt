@@ -1,0 +1,14 @@
+Pre-processing:
+  * Normalización:
+    - ver que tipo de normalización se puede hacer con los wav
+
+  * Mejorar anotaciones:
+    - DTW en notas para mejorar el alignment + NCC score para medir la mejora
+    - NCC para notas?
+    - Buscar algún tipo de detector de phonemas para intentar recrear el nivel inferior y tener más precisión
+
+
+Preparation:
+  * ¿cómo mejorar el vector de condiciones para tener una mejor representación de lo que pasa en un frame?
+    - ¿ponderar fonemas para representar la presencia de cada uno?
+    - ¿crear vector de condiciones temporal?¿cómo integrarlo?
