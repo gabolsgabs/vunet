@@ -1,7 +1,4 @@
-/cunet/train/models/old/
-/cunet/train/others/all_files.py
-/cunet/evaluation/visualizing_old.py
-/vunet
+/old/*
 
 .replicate
 *.h5

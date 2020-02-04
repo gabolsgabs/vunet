@@ -1,11 +1,16 @@
 #!/usr/bin/env python
-'''Autopool: Adaptive pooling operators for multiple instance learning'''
+'''
+Adaptation of the AutoPool1D for tensorflow 2
 
-from keras import backend as K
-from keras.engine.topology import Layer, InputSpec
-from keras import initializers
-from keras import constraints
-from keras import regularizers
+Autopool: Adaptive pooling operators for multiple instance learning
+
+https://github.com/marl/autopool
+https://arxiv.org/abs/1804.10070
+'''
+
+from tensorflow.keras import backend as K
+from tensorflow.keras import initializers, constraints, regularizers
+from tensorflow.keras.layers import Layer, InputSpec
 
 
 class AutoPool1D(Layer):
