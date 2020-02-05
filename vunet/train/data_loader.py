@@ -3,14 +3,9 @@ import copy
 import numpy as np
 import os
 import tensorflow as tf
-from cunet.train.config import config
-from cunet.train.load_data_offline import get_data
-# from cunet.train.others.val_files import VAL_FILES
+from vunet.train.config import config
+# from vunet.train.others.val_files import VAL_FILES
 import random
-import logging
-
-DATA = get_data()
-logger = logging.getLogger('tensorflow')
 
 
 def check_shape(data):
