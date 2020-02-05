@@ -91,40 +91,45 @@ def spec_mag_log(audio_file):
 def compute_one_song(dali, folder):
     logger = logging.getLogger('computing_spec')
     name = folder.split('/')[-3]
-    if name in dali:
-        entry = dali[name]
-        logger.info('Computing spec for %s' % name)
-        data_input = {
-            i.split('/')[-1].replace('.wav', ''): spec_complex(i)['spec']
-            for i in glob(folder+'/*.wav')
-        }
-        time_r = config.TIME_R
-        dur = data_input[list(data_input.keys())[0]].shape[1]*time_r - time_r
-        data_target = {
-            key: compute_target(entry, dur, time_r, key)
-            for key in config.TARGETS
-        }
-        data_target['ncc'] = entry.info['scores']['NCC']
-        data = {**data_input, **data_target}
-        np.savez(
-            os.path.join(config.PATH_BASE, name+'/features.npz'),
-            config=get_config_as_str(), **data
-        )
+    logger.info('Computing spec for %s' % name)
+    output_name = os.path.join(config.PATH_BASE, name+'/features.npz')
+    if name in dali and not os.path.exists(output_name):
+        try:
+            entry = dali[name]
+            d_input = {
+                i.split('/')[-1].replace('.wav', ''): spec_complex(i)['spec']
+                for i in glob(folder+'/*.wav')
+            }
+            time_r = config.TIME_R
+            dur = d_input[list(d_input.keys())[0]].shape[1]*time_r - time_r
+            d_target = {
+                key: compute_target(entry, dur, time_r, key)
+                for key in config.TARGETS
+            }
+            d_target['ncc'] = entry.info['scores']['NCC']
+            data = {**d_input, **d_target}
+            np.savez(output_name, config=get_config_as_str(), **data)
+        except Exception:
+            pass
+    else:
+        logger.info('No annot for %s' % name)
     return
 
 
 def main():
-    dali = DALI.get_the_DALI_dataset(config.PATH_DALI)
     logging.basicConfig(
         filename=os.path.join(config.PATH_BASE, 'computing_spec.log'),
         level=logging.INFO
     )
     logger = logging.getLogger('computing_spec')
     logger.info('Starting the computation')
-
-    Parallel(n_jobs=16, verbose=5)(
-        delayed(compute_one_song)(dali=dali, folder=str(i))
-        for i in Path(config.PATH_BASE).rglob('*merged*'))
+    dali = DALI.get_the_DALI_dataset(config.PATH_DALI)
+    logger.info('DALI loaded')
+    for i in Path(config.PATH_BASE).rglob('*merged*'):
+        compute_one_song(dali=dali, folder=str(i))
+    # Parallel(n_jobs=16, verbose=5)(
+    #     delayed(compute_one_song)(dali=dali, folder=str(i))
+    #     for i in Path(config.PATH_BASE).rglob('*merged*'))
     return
 
 

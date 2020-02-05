@@ -1,11 +1,11 @@
-""" TO BE ADAPTED"""
-import copy
 import numpy as np
-import os
 import tensorflow as tf
 from vunet.train.config import config
-# from vunet.train.others.val_files import VAL_FILES
+from itertools import groupby
 import random
+from vunet.train.load_data_offline import get_data
+
+DATA = get_data()
 
 
 def check_shape(data):
@@ -15,32 +15,120 @@ def check_shape(data):
     return np.expand_dims(data[:n, :], axis=2)
 
 
-def get_name(txt):
-    return os.path.basename(os.path.normpath(txt)).replace('.npz', '')
+def apply_to_keys(keys, func, *args, **kwargs):
+    def wrapped(d):
+        return {
+            k: func(v, *args, **kwargs)
+            if k in keys else v for k, v in d.items()
+        }
+    return wrapped
 
 
-def progressive(data, conditions, dx, val_set):
-    output = copy.deepcopy(data)
-    if (
-        config.PROGRESSIVE and np.max(np.abs(data)) > 0
-        and random.sample(range(0, 4), 1)[0] == 0   # 25% of doing it
-        and not val_set
-    ):
-        p = random.uniform(0, 1)
-        conditions[dx] = conditions[dx]*p
-        output[:, :, dx] = output[:, :, dx]*p
-    return output[:, :, dx], conditions
+def split_overlapped(data):
+    output = np.zeros(data.shape)
+    ndx = [i for i in np.argsort(data[:, 0])[::-1] if data[:, 0][i] > 0][::-1]
+    if len(ndx) > 1:
+        s = np.round(data.shape[1] / len(ndx)).astype(np.int)
+        for i, v in enumerate(ndx):
+            output[v, i*s:i*s+s] = 1
+        output[v, i*s:] = 1
+    else:
+        output = data
+    return output
+
+
+@tf.function(autograph=False)
+def as_categorical(data):
+    def py_target_as_categorical(data):
+        data = data.numpy()
+        data_binary = data.__copy__()
+        data_binary[data > 0] = 1
+        init = np.sum(np.diff(data_binary, axis=1), axis=0)
+        init = np.hstack((1, init))
+        ndx = np.where(init != 0)[0]
+        for i in range(len(ndx)):
+            if i+1 < len(ndx):
+                e = ndx[i+1]
+            else:
+                e = len(init)
+            data_binary[:, ndx[i]:e] = split_overlapped(data[:, ndx[i]:e])
+        data_binary[data_binary > 0] = 1
+        return np.expand_dims(data_binary, axis=-1).astype(np.float32)
+    return tf.py_function(py_target_as_categorical, [data], (tf.float32))
+
+
+@tf.function(autograph=False)
+def binarize(data):
+    def py_binarize(data):
+        data = data.numpy()
+        data[data > 0] = 1
+        # data[-1, :] = 0  # blank to 0
+        return np.expand_dims(data, axis=-1).astype(np.float32)
+    return tf.py_function(py_binarize, [data], (tf.float32))
+
+
+@tf.function(autograph=False)
+def get_sequence(data):
+    def py_get_sequence(data):
+        # the length is in the last element
+        output = np.zeros(config.INPUT_SHAPE[1]+1)
+        # silence as element in the sequence
+        seq = np.where(data >= 1)
+        if len(seq[1]) > 0:
+            if config.DUPLICATE:
+                # seq = np.array(seq[1])
+                tmp = []
+                for i in groupby(seq[1]):
+                    if i[0] != 39:
+                        tmp += [j for j in i[1]]
+                    else:
+                        tmp.append(i[0])
+                seq = np.array(tmp)
+            else:
+                seq = np.array([i[0] for i in groupby(seq[1])])
+            output[:len(seq)] = seq
+            output[-1] = len(seq)
+        return output.astype(np.float32)
+    return tf.py_function(py_get_sequence, [data], (tf.float32))
+
+
+def process_target(data):
+    b = binarize(data)
+    c = as_categorical(data)
+    output = tf.concat([b, c], axis=-1)
+    return output
+
+
+def get_frame(data, frame):
+    return data[:, frame:frame+config.INPUT_SHAPE[1]]
+
+
+def get_input_frame(target, data, frame, val_set):
+    output = get_frame(data['mix'], frame)
+    # 25% of doing it
+    if not val_set and random.sample(range(0, 4), 1)[0] == 0 and config.AUG:
+        # just pick another point of the same track
+        if random.sample(range(0, 2), 1)[0] == 0:
+            # or pick a random point of another track
+            uid = random.choice([i for i in DATA.keys()])
+            data = DATA[uid]
+        frame = random.choice(
+            [i for i in range(len(data['acc'])-config.INPUT_SHAPE[1])]
+        )
+        output = np.sum([target, get_frame(data['acc'], frame)], axis=0)
+    return check_shape(np.abs(output))
 
 
 def yield_data(indexes, files, val_set):
-    conditions = np.zeros(1).astype(np.float32)
-    n_frames = config.INPUT_SHAPE[1]
     for i in indexes:
         if i[0] in files:
-            if len(i) > 2:
-                conditions = i[2]
-            yield {'data': DATA[i[0]][:, i[1]:i[1]+n_frames, :],
-                   'conditions': conditions, 'val': val_set}
+            target = get_frame(DATA[i[0]]['vocals'], i[1])
+            yield {
+                'target': check_shape(np.abs(target)),
+                # abs and check_shape not before for doing the sum next
+                'input': get_input_frame(target, DATA[i[0]], i[1], val_set),
+                'conditions': get_frame(DATA[i[0]]['cond'], i[1])
+            }
 
 
 def load_indexes_file(val_set=False):
@@ -49,71 +137,65 @@ def load_indexes_file(val_set=False):
         r = list(range(len(indexes)))
         random.shuffle(r)
         indexes = indexes[r]
-        # files = [i for i in DATA.keys() if i is not VAL_FILES]
-        files = list(DATA.keys())
+        files = [k for k, v in DATA.items() if v['ncc'] < config.TRAIN]
     else:
-        # Indexes val has no overlapp in the data points
         indexes = np.load(config.INDEXES_VAL, allow_pickle=True)['indexes']
-        # files = VAL_FILES
-        files = list(DATA.keys())
+        files = [
+            k for k, v in DATA.items()
+            if v['ncc'] > config.VAL and v['ncc'] < config.TEST
+        ]
     return yield_data(indexes, files, val_set)
 
 
 @tf.function(autograph=False)
-def prepare_data(data):
-    def py_prepare_data(target_complex, conditions, val_set):
-        target_complex = target_complex.numpy()
-        conditions = conditions.numpy()
-        if config.MODE == 'standard':
-            # the instrument is already selected and normalized in load_files
-            target = np.abs(target_complex[:, :, 0])    # thus target in 0
-        if config.MODE == 'conditioned':
-            i = np.nonzero(conditions)[0]
-            target = np.zeros(target_complex.shape[:2]).astype(np.complex64)
-            if len(i) > 0:
-                # simple conditions
-                if len(i) == 1:
-                    target, conditions = progressive(
-                        target_complex, conditions, i[0], val_set)
-                # complex conditions
-                if len(i) > 1:
-                    for dx in i:
-                        target_tmp, conditions = progressive(
-                            target_complex, conditions, dx, val_set)
-                        target = np.sum([target, target_tmp], axis=0)
-        target = np.abs(target)
-        mixture = np.abs(target_complex[:, :, -1])
-        return check_shape(mixture), check_shape(target), conditions
-    mixture, target, conditions = tf.py_function(
-        py_prepare_data, [data['data'], data['conditions'], data['val']],
-        (tf.float32, tf.float32, tf.float32)
-    )
-    return {'mix': mixture, 'target': target, 'conditions': conditions}
+def prepare_condition(data):
+    def py_prepare_condition(data):
+        reshape = False
+        c_shape = (config.Z_DIM, config.N_FRAMES)
+        if config.COND_MATRIX == 'overlap':
+            cond = data[:, :, 0].numpy()
+        if config.COND_MATRIX == 'sequential':
+            cond = data[:, :, 1].numpy()
+        output = cond
+        if config.COND_INPUT == 'binary':
+            output = np.max(cond[:-1, :], axis=1)   # -1 remove silence
+            reshape = True
+        if config.COND_INPUT == 'mean_dur':
+            output = np.mean(cond[:-1, :], axis=1)
+            reshape = True
+        if config.COND_INPUT == 'mean_dur_norm':
+            output = np.mean(cond[:-1, :], axis=1)
+            output = output / np.max(output)
+            reshape = True
+        if config.COND_INPUT == 'vocal_energy':
+            # just an scalar
+            output = np.mean(np.max(cond[:-1, :], axis=1))
+            reshape = True
+        if config.CONTROL_TYPE == 'dense' and reshape:
+            c_shape = (1, config.Z_DIM)
+        if config.CONTROL_TYPE == 'cnn' and reshape:
+            c_shape = (config.Z_DIM, 1)
+        output = tf.ensure_shape(tf.reshape(output, c_shape), c_shape)
+        return output
+    return tf.py_function(py_prepare_condition, [data], (tf.float32))
 
 
 def convert_to_estimator_input(d):
-    # just the mixture standar mode
-    inputs = tf.ensure_shape(d["mix"], config.INPUT_SHAPE)
-    if config.MODE == 'conditioned':
-        if config.CONTROL_TYPE == 'dense':
-            c_shape = (1, config.Z_DIM)
-        if config.CONTROL_TYPE == 'cnn':
-            c_shape = (config.Z_DIM, 1)
-        cond = tf.ensure_shape(tf.reshape(d['conditions'], c_shape), c_shape)
-        # mixture + condition vector z
-        inputs = (inputs, cond)
-        # target -> isolate instrument
+    inputs = tf.ensure_shape(d['input'], config.INPUT_SHAPE)
     outputs = tf.ensure_shape(d["target"], config.INPUT_SHAPE)
+    cond = prepare_condition(d['conditions'])
+    inputs = (inputs, cond)
     return (inputs, outputs)
 
 
 def dataset_generator(val_set=False):
     ds = tf.data.Dataset.from_generator(
         load_indexes_file,
-        {'data': tf.complex64, 'conditions': tf.float32, 'val': tf.bool},
+        {'target': tf.float32, 'input': tf.float32, 'conditions': tf.int32},
         args=[val_set]
     ).map(
-        prepare_data, num_parallel_calls=config.NUM_THREADS
+        apply_to_keys(["conditions"], process_target),
+        num_parallel_calls=config.NUM_THREADS
     ).map(
         convert_to_estimator_input, num_parallel_calls=config.NUM_THREADS
     ).batch(

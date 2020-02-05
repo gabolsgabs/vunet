@@ -4,6 +4,7 @@ import tensorflow as tf
 
 
 class config(Config):
+    # Add also notes?
     groups = [
         'sdp', 'sdt', 'sdv',        # simple dense phonemes/types/vocals
         'cdp', 'cdt', 'cdv',        # complex dense phonemes/types/vocals
@@ -15,9 +16,9 @@ class config(Config):
     NAME = 'two_complex_cond'
 
     # GENERATOR
-    PATH_BASE = ''
-    INDEXES_TRAIN = ''
-    INDEXES_VAL = ''
+    PATH_BASE = '/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'
+    INDEXES_TRAIN = PATH_BASE + 'indexes/indexes_1_4.npz'
+    INDEXES_VAL = PATH_BASE + 'indexes/indexes_128_4.npz'
     NUM_THREADS = tf.data.experimental.AUTOTUNE
     N_PREFETCH = tf.data.experimental.AUTOTUNE
 
@@ -25,6 +26,7 @@ class config(Config):
     BATCH_SIZE = 64
     N_BATCH = 2048
     N_EPOCH = 1000
+    AUG = True
 
     # checkpoints
     EARLY_STOPPING_MIN_DELTA = 1e-6
@@ -32,7 +34,15 @@ class config(Config):
     REDUCE_PLATEAU_PATIENCE = 5
 
     # conditions
-    COND_INPUT = 'binary'      # 'binary', 'ponderate', 'energy', 'autopool'
+    CONDITION = setting(
+        'phonemes',
+        sdp='phonemes', sdt='phoneme_types', sdv='chars',
+        cdp='phonemes', cdt='phoneme_types', cdv='chars',
+        scp='phonemes', sct='phoneme_types', scv='chars',
+        ccp='phonemes', cct='phoneme_types', ccv='chars'
+    )
+    COND_INPUT = 'binary'      # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
+    COND_MATRIX = 'overlap'    # sequential
     Z_DIM = setting(
         39,
         sdp=39, sdt=8, sdv=1,
