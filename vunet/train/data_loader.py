@@ -119,16 +119,28 @@ def get_input_frame(target, data, frame, val_set):
     return check_shape(np.abs(output))
 
 
+@tf.function(autograph=False)
+def get_data(data):
+    def py_get_data(uid, ndx, val_set):
+        uid = uid.numpy().decode('utf8')
+        ndx = ndx.numpy()
+        target = get_frame(DATA[uid]['vocals'], ndx)
+        inputs = get_input_frame(
+            target, DATA[uid], ndx, val_set).astype(np.float32),
+        conditions = get_frame(DATA[uid]['cond'], ndx).astype(np.float32)
+        # abs and check_shape not before for doing the sum next
+        target = check_shape(np.abs(target)).astype(np.float32),
+        return target, inputs, conditions
+    target, input, conditions = tf.py_function(
+        py_get_data, [data['uid'], data['index'], data['val_set']],
+        (tf.float32, tf.float32, tf.float32))
+    return {'target': target, 'input': input, 'conditions': conditions}
+
+
 def yield_data(indexes, files, val_set):
     for i in indexes:
         if i[0] in files:
-            target = get_frame(DATA[i[0]]['vocals'], i[1])
-            yield {
-                'target': check_shape(np.abs(target)),
-                # abs and check_shape not before for doing the sum next
-                'input': get_input_frame(target, DATA[i[0]], i[1], val_set),
-                'conditions': get_frame(DATA[i[0]]['cond'], i[1])
-            }
+            yield {'uid': i[0], 'index': i[1], 'val_set': val_set}
 
 
 def load_indexes_file(val_set=False):
@@ -191,8 +203,10 @@ def convert_to_estimator_input(d):
 def dataset_generator(val_set=False):
     ds = tf.data.Dataset.from_generator(
         load_indexes_file,
-        {'target': tf.float32, 'input': tf.float32, 'conditions': tf.int32},
+        {'uid': tf.string, 'index': tf.int32, 'val_set': tf.bool},
         args=[val_set]
+    ).map(
+        get_data, num_parallel_calls=config.NUM_THREADS
     ).map(
         apply_to_keys(["conditions"], process_target),
         num_parallel_calls=config.NUM_THREADS
