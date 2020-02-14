@@ -6,17 +6,25 @@ import tensorflow as tf
 class config(Config):
     # Add also notes?
     groups = [
+        'standard',
         'sdp', 'sdt', 'sdv',        # simple dense phonemes/types/vocals
         'cdp', 'cdt', 'cdv',        # complex dense phonemes/types/vocals
         'scp', 'sct', 'scv',        # simple cnn phonemes/types/vocals
         'ccp', 'cct', 'ccv'         # complex cnn phonemes/types/vocals
     ]
     # General
-    MODE = ''
-    NAME = 'two_complex_cond'
+    MODE = setting(
+        'conditioned', standard='standard',
+        sdp='conditioned', sdt='conditioned', sdv='conditioned',
+        cdp='conditioned', cdt='conditioned', cdv='conditioned',
+        scp='conditioned', sct='conditioned', scv='conditioned',
+        ccp='conditioned', cct='conditioned', ccv='conditioned'
+    )
+    NAME = 'before_checking_if_the_input_is_correct'
 
     # GENERATOR
-    PATH_BASE = '/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'
+    # PATH_BASE = '/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'   # guzheng
+    PATH_BASE = '/data3/anasynth_nonbp/meseguerbrocal/multitracks/'   # gusli
     INDEXES_TRAIN = PATH_BASE + 'indexes/indexes_1_4.npz'
     INDEXES_VAL = PATH_BASE + 'indexes/indexes_128_4.npz'
     NUM_THREADS = tf.data.experimental.AUTOTUNE
@@ -28,6 +36,9 @@ class config(Config):
     N_EPOCH = 1000
     AUG = True
 
+    VAL = .863  #
+    TEST = .9   # 73 tracks
+
     # checkpoints
     EARLY_STOPPING_MIN_DELTA = 1e-6
     EARLY_STOPPING_PATIENCE = 15
@@ -35,7 +46,7 @@ class config(Config):
 
     # conditions
     CONDITION = setting(
-        'phonemes',
+        'phonemes', standard='phonemes',
         sdp='phonemes', sdt='phoneme_types', sdv='chars',
         cdp='phonemes', cdt='phoneme_types', cdv='chars',
         scp='phonemes', sct='phoneme_types', scv='chars',
@@ -44,7 +55,7 @@ class config(Config):
     COND_INPUT = 'binary'      # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
     COND_MATRIX = 'overlap'    # sequential
     Z_DIM = setting(
-        39,
+        39, standard=0,
         sdp=39, sdt=8, sdv=1,
         cdp=39, cdt=8, cdv=1,
         scp=39, sct=8, scv=1,
@@ -66,14 +77,14 @@ class config(Config):
 
     # control parameters
     CONTROL_TYPE = setting(
-        'dense',
+        'dense', standard='',
         sdp='dense', sdt='dense', sdv='dense',
         cdp='dense', cdt='dense', cdv='dense',
         scp='cnn', sct='cnn', scv='cnn',
         ccp='cnn', cct='cnn', ccv='cnn'
     )
     FILM_TYPE = setting(
-        'simple',
+        'simple', standard='',
         sdp='simple', sdt='simple', sdv='simple',
         cdp='complex', cdt='complex', cdv='complex',
         scp='simple', sct='simple', scv='simple',
@@ -91,7 +102,7 @@ class config(Config):
 
     # cnn control
     N_FILTERS = setting(
-        [],
+        [],  standard=[],
         sdp=[], sdt=[], sdv=[],
         cdp=[], cdt=[], cdv=[],
         scp=[32, 64, 128], sct=[16, 64, 128], scv=[8, 32, 64],
@@ -100,7 +111,7 @@ class config(Config):
     PADDING = ['same', 'same', 'valid']
     # Dense control
     N_NEURONS = setting(
-        [32, 64, 128],
+        [32, 64, 128],  standard=[],
         sdp=[32, 64, 128], sdt=[16, 64, 128], sdv=[8, 32, 64],
         cdp=[64, 256, 1024], cdt=[16, 256, 1024], cdv=[8, 32, 512],
         scp=[], sct=[], scv=[],

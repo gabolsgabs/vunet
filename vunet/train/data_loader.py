@@ -126,10 +126,10 @@ def get_data(data):
         ndx = ndx.numpy()
         target = get_frame(DATA[uid]['vocals'], ndx)
         inputs = get_input_frame(
-            target, DATA[uid], ndx, val_set).astype(np.float32),
+            target, DATA[uid], ndx, val_set).astype(np.float32)
         conditions = get_frame(DATA[uid]['cond'], ndx).astype(np.float32)
         # abs and check_shape not before for doing the sum next
-        target = check_shape(np.abs(target)).astype(np.float32),
+        target = check_shape(np.abs(target)).astype(np.float32)
         return target, inputs, conditions
     target, input, conditions = tf.py_function(
         py_get_data, [data['uid'], data['index'], data['val_set']],
@@ -149,7 +149,7 @@ def load_indexes_file(val_set=False):
         r = list(range(len(indexes)))
         random.shuffle(r)
         indexes = indexes[r]
-        files = [k for k, v in DATA.items() if v['ncc'] < config.TRAIN]
+        files = [k for k, v in DATA.items() if v['ncc'] < config.VAL]
     else:
         indexes = np.load(config.INDEXES_VAL, allow_pickle=True)['indexes']
         files = [
@@ -193,10 +193,11 @@ def prepare_condition(data):
 
 
 def convert_to_estimator_input(d):
-    inputs = tf.ensure_shape(d['input'], config.INPUT_SHAPE)
     outputs = tf.ensure_shape(d["target"], config.INPUT_SHAPE)
-    cond = prepare_condition(d['conditions'])
-    inputs = (inputs, cond)
+    inputs = tf.ensure_shape(d['input'], config.INPUT_SHAPE)
+    if config.MODE == 'conditioned':
+        cond = prepare_condition(d['conditions'])
+        inputs = (inputs, cond)
     return (inputs, outputs)
 
 

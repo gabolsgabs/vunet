@@ -2,7 +2,7 @@ from datetime import datetime
 from tensorflow.keras.callbacks import (
     ModelCheckpoint, EarlyStopping, TensorBoard, ReduceLROnPlateau
 )
-from cunet.train.config import config
+from vunet.train.config import config
 import os
 
 
@@ -21,22 +21,13 @@ def write_config(folder):
 
 def save_dir(t, name):
     folder = os.path.join(config.PATH_BASE, t, config.MODE)
-    if config.MODE == 'standard':
-        folder = os.path.join(folder, config.TARGET)
     if config.MODE == 'conditioned':
         folder = os.path.join(
-            folder, "_".join((config.FILM_TYPE, config.CONTROL_TYPE)))
+            folder, "_".join((
+                 config.CONDITION, config.FILM_TYPE, config.CONTROL_TYPE)))
     folder = os.path.join(folder, name)
     create_folder(folder)
     return folder
-
-
-def make_name():
-    name = [config.NAME]
-    if config.ADD_TIME:
-        now = datetime.now()
-        name.append(now.strftime("%d_%m_%Y_%H:%M"))
-    return "_".join(name)
 
 
 def make_earlystopping():

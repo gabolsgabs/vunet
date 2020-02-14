@@ -3,7 +3,7 @@ import logging
 import tensorflow as tf
 from vunet.train.others.utilities import (
     make_earlystopping, make_reduce_lr, make_tensorboard, make_checkpoint,
-    make_name, save_dir, write_config
+    save_dir, write_config
 )
 from vunet.train.config import config
 from vunet.train.models.vunet_model import vunet_model
@@ -19,8 +19,7 @@ logger.setLevel(logging.INFO)
 
 def main():
     config.parse_args()
-    name = make_name()
-    save_path = save_dir('models', name)
+    save_path = save_dir('models', config.NAME)
     write_config(save_path)
     _ = get_lock()
     logger.info('Starting the computation')
@@ -45,8 +44,12 @@ def main():
     ds_train = dataset_generator()
     ds_val = dataset_generator(val_set=True)
 
-    logger.info('Starting training for %s' % name)
-    model.fit(
+    logger.info('Starting training for %s' % config.NAME)
+
+    # USE VAL_STEPS!!
+    # https://www.tensorflow.org/tutorials/images/classification
+
+    history = model.fit(
         ds_train,
         validation_data=ds_val,
         steps_per_epoch=config.N_BATCH,
@@ -58,8 +61,8 @@ def main():
             make_checkpoint(save_path)
         ])
 
-    logger.info('Saving model %s' % name)
-    model.save(os.path.join(save_path, name+'.h5'))
+    logger.info('Saving model %s' % config.NAME)
+    model.save(os.path.join(save_path, config.NAME+'.h5'))
     logger.info('Done!')
     return
 
