@@ -1,7 +1,9 @@
 import numpy as np
 from vunet.train.config import config
 import logging
+import gc
 from pathlib import Path
+from joblib import Parallel, delayed
 
 
 logger = logging.getLogger('tensorflow')
@@ -20,21 +22,32 @@ def normlize_complex(data):
                      (complex_max(data) - complex_min(data)))
 
 
+def load_a_file(v, i, end):
+    name = v.split('/')[-2]
+    print('Loading the file %s %i out of %i' % (name, i, end))
+    tmp = np.load(v)
+    data = {}
+    # data.setdefault(name, {})
+    data['vocals'] = normlize_complex(tmp['vocals'])
+    data['mix'] = normlize_complex(tmp['mixture'])
+    data['acc'] = normlize_complex(tmp['accompaniment'])
+    data['cond'] = tmp[config.CONDITION]
+    data['ncc'] = tmp['ncc']
+    return (name, data)
+
+
 def load_data(files):
     """The data is loaded in memory just once for the generator to have direct
     access to it"""
-    data = {}
-    for i, v in enumerate(files):
-        print(v)
-        name = v.split('/')[-2]
-        logger.info('Loading the file %s %i out of %i' % (name, i, len(files)))
-        tmp = np.load(v)
-        data.setdefault(name, {})
-        data[name]['vocals'] = normlize_complex(tmp['vocals'])
-        data[name]['mix'] = normlize_complex(tmp['mixture'])
-        data[name]['acc'] = normlize_complex(tmp['accompaniment'])
-        data[name]['cond'] = tmp[config.CONDITION]
-        data[name]['ncc'] = tmp['ncc']
+    # for i, v in enumerate(files):
+    #     data = load_a_file(v=v, i=i, end=len(files))
+    data = {
+        k: v for k, v in Parallel(n_jobs=16, verbose=5)(
+                delayed(load_a_file)(v=v, i=i, end=len(files))
+                for i, v in enumerate(files)
+            )
+    }
+    _ = gc.collect()
     return data
 
 
