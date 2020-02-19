@@ -1,4 +1,8 @@
 /old/*
+/vunet/preprocess/copy_features.py
+/vunet/evaluate/visualizing.py
+/vunet/evaluate/visualizing_old.py
+
 
 .replicate
 *.h5

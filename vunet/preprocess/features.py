@@ -8,6 +8,7 @@ import logging
 import os
 import librosa
 
+dali = DALI.get_the_DALI_dataset(config.PATH_DALI)
 
 # ADD RACHELS -> medley /net/assdb/data/mir2/2017_MedleyDB_ALL
 # my audio -> /net/guzheng/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks
@@ -34,9 +35,20 @@ def spec_complex(audio_file):
     """Compute the complex spectrum"""
     output = {'type': 'complex'}
     logger = logging.getLogger('computing_spec')
+
+    # apply noisy gate!! https://github.com/rabitt/pysox
+
     try:
         logger.info('Computing complex spec for %s' % audio_file)
         audio, fe = librosa.load(audio_file, sr=config.FR)
+        # remove dc component
+        audio -= np.mean(audio)
+        # if 'vocals' in audio_file:
+        #     db = librosa.core.amplitude_to_db(audio, ref=np.max)
+        #     thd = np.mean(db) - 5
+        #     if thd > -60:
+        #         thd = -60
+        #     audio[db < thd] = 0
         output['spec'] = librosa.stft(
             audio, n_fft=config.FFT_SIZE, hop_length=config.HOP)
     except Exception as my_error:
@@ -88,29 +100,34 @@ def spec_mag_log(audio_file):
     return output
 
 
-def compute_one_song(dali, folder):
+def compute_one_song(folder):
     logger = logging.getLogger('computing_spec')
     name = folder.split('/')[-3]
     logger.info('Computing spec for %s' % name)
     output_name = os.path.join(config.PATH_BASE, name+'/features.npz')
     if name in dali and not os.path.exists(output_name):
-        try:
-            entry = dali[name]
-            d_input = {
-                i.split('/')[-1].replace('.wav', ''): spec_complex(i)['spec']
-                for i in glob(folder+'/*.wav')
-            }
-            time_r = config.TIME_R
-            dur = d_input[list(d_input.keys())[0]].shape[1]*time_r - time_r
-            d_target = {
-                key: compute_target(entry, dur, time_r, key)
-                for key in config.TARGETS
-            }
-            d_target['ncc'] = entry.info['scores']['NCC']
-            data = {**d_input, **d_target}
-            np.savez(output_name, config=get_config_as_str(), **data)
-        except Exception:
-            pass
+        entry = dali[name]
+        # to be sure we are using the rigth formart
+        # print(folder.split('/')[-2], entry.info['audio']['path'])
+        if folder.split('/')[-2] in entry.info['audio']['path']:
+            try:
+                # print(folder)
+                d_input = {
+                    i.split('/')[-1].replace('.wav', ''): spec_complex(i)['spec']
+                    for i in glob(folder+'/*.wav')
+                }
+                time_r = config.TIME_R
+                dur = d_input[list(d_input.keys())[0]].shape[1]*time_r - time_r
+                d_target = {
+                    key: compute_target(entry, dur, time_r, key)
+                    for key in config.TARGETS
+                }
+                d_target['ncc'] = entry.info['scores']['NCC']
+                d_target['errors'] = entry.info['errors']
+                data = {**d_input, **d_target}
+                np.savez(output_name, config=get_config_as_str(), **data)
+            except Exception:
+                pass
     else:
         logger.info('No annot for %s' % name)
     return
@@ -123,16 +140,17 @@ def main():
     )
     logger = logging.getLogger('computing_spec')
     logger.info('Starting the computation')
-    dali = DALI.get_the_DALI_dataset(config.PATH_DALI)
     logger.info('DALI loaded')
-    for i in Path(config.PATH_BASE).rglob('*merged*'):
-        compute_one_song(dali=dali, folder=str(i))
+    files = np.array([str(i) for i in Path(config.PATH_BASE).rglob('*merged*')])
+    # print(len(dali), len(files))
+    np.random.shuffle(files)
+    for i in files:
+        compute_one_song(folder=i)
     # Parallel(n_jobs=16, verbose=5)(
-    #     delayed(compute_one_song)(dali=dali, folder=str(i))
+    #     delayed(compute_one_song)(folder=str(i))
     #     for i in Path(config.PATH_BASE).rglob('*merged*'))
     return
 
 
 if __name__ == '__main__':
-    config.parse_args()
     main()

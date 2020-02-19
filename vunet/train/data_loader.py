@@ -7,6 +7,8 @@ from vunet.train.load_data_offline import get_data
 
 DATA = get_data()
 
+# USE DALI ERRORS IN ORDER TO FILTER FRAMES -> add this info while computing features
+
 
 def check_shape(data):
     n = data.shape[0]
@@ -149,12 +151,16 @@ def load_indexes_file(val_set=False):
         r = list(range(len(indexes)))
         random.shuffle(r)
         indexes = indexes[r]
-        files = [k for k, v in DATA.items() if v['ncc'] < config.VAL]
+        # files = [k for k, v in DATA.items() if v['ncc'] < config.VAL]
+        files = [
+            k for k, v in DATA.items()
+            if v['ncc'] < config.TEST and v['ncc'] >= config.TRAIN
+        ]
     else:
         indexes = np.load(config.INDEXES_VAL, allow_pickle=True)['indexes']
         files = [
             k for k, v in DATA.items()
-            if v['ncc'] > config.VAL and v['ncc'] < config.TEST
+            if v['ncc'] >= config.VAL and v['ncc'] < config.TEST
         ]
     return yield_data(indexes, files, val_set)
 

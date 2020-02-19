@@ -1,4 +1,3 @@
-""" TO BE ADAPTED"""
 import logging
 import tensorflow as tf
 from vunet.train.others.utilities import (
@@ -9,6 +8,7 @@ from vunet.train.config import config
 from vunet.train.models.vunet_model import vunet_model
 from vunet.train.models.unet_model import unet_model
 import os
+import json
 
 from vunet.train.others.lock import get_lock
 
@@ -30,6 +30,13 @@ def main():
         model = unet_model()
     if config.MODE == 'conditioned':
         model = vunet_model()
+
+    logger.info('Preparing the genrators')
+    # Here to be sure that has the same config
+    from vunet.train.data_loader import dataset_generator
+    ds_train = dataset_generator()
+    ds_val = dataset_generator(val_set=True)
+
     latest = tf.train.latest_checkpoint(
         os.path.join(save_path, 'checkpoint'))
     if latest:
@@ -37,12 +44,6 @@ def main():
         logger.info("Restored from {}".format(latest))
     else:
         logger.info("Initializing from scratch.")
-
-    logger.info('Preparing the genrators')
-    # Here to be sure that has the same config
-    from vunet.train.data_loader import dataset_generator
-    ds_train = dataset_generator()
-    ds_val = dataset_generator(val_set=True)
 
     logger.info('Starting training for %s' % config.NAME)
 
@@ -60,7 +61,9 @@ def main():
             make_tensorboard(save_path),
             make_checkpoint(save_path)
         ])
-
+    json.dump(
+        str(history.history), open(os.path.join(save_path, 'hist.json'), 'w')
+    )
     logger.info('Saving model %s' % config.NAME)
     model.save(os.path.join(save_path, config.NAME+'.h5'))
     logger.info('Done!')
