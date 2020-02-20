@@ -111,7 +111,7 @@ def compute_one_song(folder):
         # print(folder.split('/')[-2], entry.info['audio']['path'])
         if folder.split('/')[-2] in entry.info['audio']['path']:
             try:
-                # print(folder)
+                print(folder)
                 d_input = {
                     i.split('/')[-1].replace('.wav', ''): spec_complex(i)['spec']
                     for i in glob(folder+'/*.wav')
@@ -123,7 +123,8 @@ def compute_one_song(folder):
                     for key in config.TARGETS
                 }
                 d_target['ncc'] = entry.info['scores']['NCC']
-                d_target['errors'] = entry.info['errors']
+                d_target['no_annots'] = entry.info['errors']['vocals_without_annot']
+                d_target['many_annots'] = entry.info['errors']['annot_in_silence']
                 data = {**d_input, **d_target}
                 np.savez(output_name, config=get_config_as_str(), **data)
             except Exception:

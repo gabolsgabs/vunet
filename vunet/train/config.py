@@ -16,11 +16,11 @@ class config(Config):
     MODE = setting(
         default='conditioned', standard='standard',
     )
-    NAME = 'with_aug'
+    NAME = 'with_aug_new_norm'
 
     # GENERATOR
-    # PATH_BASE = '/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'   # guzheng
-    PATH_BASE = '/data3/anasynth_nonbp/meseguerbrocal/multitracks/'   # gusli
+    PATH_BASE = '/net/guzheng/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'   # guzheng
+    # PATH_BASE = '/data3/anasynth_nonbp/meseguerbrocal/multitracks/'   # gusli
     INDEXES_TRAIN = PATH_BASE + 'indexes/indexes_1_4.npz'
     INDEXES_VAL = PATH_BASE + 'indexes/indexes_128_4.npz'
     NUM_THREADS = tf.data.experimental.AUTOTUNE
@@ -30,7 +30,7 @@ class config(Config):
     BATCH_SIZE = 128
     N_BATCH = 1024
     N_EPOCH = 1000
-    AUG = False
+    AUG = True
 
     # Total = 515
     TEST = .89      # 101 tracks
@@ -39,8 +39,8 @@ class config(Config):
 
     # checkpoints
     EARLY_STOPPING_MIN_DELTA = 1e-5
-    EARLY_STOPPING_PATIENCE = 30
-    REDUCE_PLATEAU_PATIENCE = 15
+    EARLY_STOPPING_PATIENCE = 20
+    REDUCE_PLATEAU_PATIENCE = 10
 
     # conditions
     CONDITION = setting(

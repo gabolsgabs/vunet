@@ -4,8 +4,9 @@ from vunet.train.config import config
 from itertools import groupby
 import random
 from vunet.train.load_data_offline import get_data
+from vunet.evaluation.train_ids import ids
 
-DATA = get_data()
+DATA = get_data(ids)
 
 # USE DALI ERRORS IN ORDER TO FILTER FRAMES -> add this info while computing features
 
@@ -40,36 +41,6 @@ def split_overlapped(data):
 
 
 @tf.function(autograph=False)
-def as_categorical(data):
-    def py_target_as_categorical(data):
-        data = data.numpy()
-        data_binary = data.__copy__()
-        data_binary[data > 0] = 1
-        init = np.sum(np.diff(data_binary, axis=1), axis=0)
-        init = np.hstack((1, init))
-        ndx = np.where(init != 0)[0]
-        for i in range(len(ndx)):
-            if i+1 < len(ndx):
-                e = ndx[i+1]
-            else:
-                e = len(init)
-            data_binary[:, ndx[i]:e] = split_overlapped(data[:, ndx[i]:e])
-        data_binary[data_binary > 0] = 1
-        return np.expand_dims(data_binary, axis=-1).astype(np.float32)
-    return tf.py_function(py_target_as_categorical, [data], (tf.float32))
-
-
-@tf.function(autograph=False)
-def binarize(data):
-    def py_binarize(data):
-        data = data.numpy()
-        data[data > 0] = 1
-        # data[-1, :] = 0  # blank to 0
-        return np.expand_dims(data, axis=-1).astype(np.float32)
-    return tf.py_function(py_binarize, [data], (tf.float32))
-
-
-@tf.function(autograph=False)
 def get_sequence(data):
     def py_get_sequence(data):
         # the length is in the last element
@@ -92,13 +63,6 @@ def get_sequence(data):
             output[-1] = len(seq)
         return output.astype(np.float32)
     return tf.py_function(py_get_sequence, [data], (tf.float32))
-
-
-def process_target(data):
-    b = binarize(data)
-    c = as_categorical(data)
-    output = tf.concat([b, c], axis=-1)
-    return output
 
 
 def get_frame(data, frame):
@@ -176,18 +140,18 @@ def prepare_condition(data):
             cond = data[:, :, 1].numpy()
         output = cond
         if config.COND_INPUT == 'binary':
-            output = np.max(cond[:-1, :], axis=1)   # -1 remove silence
+            output = np.max(cond, axis=1)   # silence is not removed
             reshape = True
         if config.COND_INPUT == 'mean_dur':
-            output = np.mean(cond[:-1, :], axis=1)
+            output = np.mean(cond, axis=1)
             reshape = True
         if config.COND_INPUT == 'mean_dur_norm':
-            output = np.mean(cond[:-1, :], axis=1)
+            output = np.mean(cond, axis=1)
             output = output / np.max(output)
             reshape = True
         if config.COND_INPUT == 'vocal_energy':
             # just an scalar
-            output = np.mean(np.max(cond[:-1, :], axis=1))
+            output = np.mean(np.max(cond, axis=1))
             reshape = True
         if config.CONTROL_TYPE == 'dense' and reshape:
             c_shape = (1, config.Z_DIM)
@@ -214,9 +178,6 @@ def dataset_generator(val_set=False):
         args=[val_set]
     ).map(
         get_data, num_parallel_calls=config.NUM_THREADS
-    ).map(
-        apply_to_keys(["conditions"], process_target),
-        num_parallel_calls=config.NUM_THREADS
     ).map(
         convert_to_estimator_input, num_parallel_calls=config.NUM_THREADS
     ).batch(

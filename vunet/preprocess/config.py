@@ -11,7 +11,7 @@ class config(Config):
     FFT_SIZE = 1024
     HOP = 256
     TARGETS = ['phonemes', 'phoneme_types', 'chars', 'notes']
-    STEP = 128              # step in frames for creating the input data
+    STEP = 1                # step in frames for creating the input data
     CHUNK_SIZE = 4          # chunking the indexes before mixing -> define the number of data points of the same track
     TIME_R = HOP/FR
     N_FRAMES = 128
