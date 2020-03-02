@@ -11,6 +11,22 @@ DATA = get_data(ids)
 # USE DALI ERRORS IN ORDER TO FILTER FRAMES -> add this info while computing features
 
 
+def update_cond_shape():
+    reshape = False
+    if config.COND_INPUT == 'vocal_energy':
+        config.Z_DIM = 1
+    shape = (config.Z_DIM, config.N_FRAMES)
+    reshape_list = ['binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy']
+    if config.COND_INPUT in reshape_list:
+        reshape = True
+    if config.CONTROL_TYPE == 'dense' and reshape:
+        shape = (1, config.Z_DIM)
+    if config.CONTROL_TYPE == 'cnn' and reshape:
+        shape = (config.Z_DIM, 1)
+    config.COND_SHAPE = shape
+    return
+
+
 def check_shape(data):
     n = data.shape[0]
     if n % 2 != 0:
@@ -132,8 +148,6 @@ def load_indexes_file(val_set=False):
 @tf.function(autograph=False)
 def prepare_condition(data):
     def py_prepare_condition(data):
-        reshape = False
-        c_shape = (config.Z_DIM, config.N_FRAMES)
         if config.COND_MATRIX == 'overlap':
             cond = data[:, :, 0].numpy()
         if config.COND_MATRIX == 'sequential':
@@ -141,23 +155,15 @@ def prepare_condition(data):
         output = cond
         if config.COND_INPUT == 'binary':
             output = np.max(cond, axis=1)   # silence is not removed
-            reshape = True
         if config.COND_INPUT == 'mean_dur':
             output = np.mean(cond, axis=1)
-            reshape = True
         if config.COND_INPUT == 'mean_dur_norm':
             output = np.mean(cond, axis=1)
             output = output / np.max(output)
-            reshape = True
         if config.COND_INPUT == 'vocal_energy':
             # just an scalar
             output = np.mean(np.max(cond, axis=1))
-            reshape = True
-        if config.CONTROL_TYPE == 'dense' and reshape:
-            c_shape = (1, config.Z_DIM)
-        if config.CONTROL_TYPE == 'cnn' and reshape:
-            c_shape = (config.Z_DIM, 1)
-        output = tf.ensure_shape(tf.reshape(output, c_shape), c_shape)
+        output = tf.reshape(output, config.COND_SHAPE)
         return output
     return tf.py_function(py_prepare_condition, [data], (tf.float32))
 
@@ -166,19 +172,26 @@ def convert_to_estimator_input(d):
     outputs = tf.ensure_shape(d["target"], config.INPUT_SHAPE)
     inputs = tf.ensure_shape(d['input'], config.INPUT_SHAPE)
     if config.MODE == 'conditioned':
-        cond = prepare_condition(d['conditions'])
+        cond = tf.ensure_shape(d['conditions'], config.COND_SHAPE)
         inputs = (inputs, cond)
     return (inputs, outputs)
 
 
 def dataset_generator(val_set=False):
+    update_cond_shape()
     ds = tf.data.Dataset.from_generator(
         load_indexes_file,
         {'uid': tf.string, 'index': tf.int32, 'val_set': tf.bool},
         args=[val_set]
     ).map(
         get_data, num_parallel_calls=config.NUM_THREADS
-    ).map(
+    )
+    if config.MODE == 'conditioned':
+        ds = ds.map(
+            apply_to_keys(["conditions"], prepare_condition),
+            num_parallel_calls=config.NUM_THREADS
+        )
+    ds = ds.map(
         convert_to_estimator_input, num_parallel_calls=config.NUM_THREADS
     ).batch(
         config.BATCH_SIZE, drop_remainder=True

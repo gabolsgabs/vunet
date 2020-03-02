@@ -10,7 +10,6 @@ import librosa
 
 dali = DALI.get_the_DALI_dataset(config.PATH_DALI)
 
-# ADD RACHELS -> medley /net/assdb/data/mir2/2017_MedleyDB_ALL
 # my audio -> /net/guzheng/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks
 # Look at /Users/meseguerbrocal/Documents/PhD/datasets/multitracks/
 
@@ -36,7 +35,7 @@ def spec_complex(audio_file):
     output = {'type': 'complex'}
     logger = logging.getLogger('computing_spec')
 
-    # apply noisy gate!! https://github.com/rabitt/pysox
+    # apply noisy gate?? https://github.com/rabitt/pysox
 
     try:
         logger.info('Computing complex spec for %s' % audio_file)
@@ -100,6 +99,24 @@ def spec_mag_log(audio_file):
     return output
 
 
+def get_a_song(entry, folder):
+    d_input = {
+        i.split('/')[-1].replace('.wav', ''): spec_complex(i)['spec']
+        for i in glob(folder+'/*.wav')
+    }
+    time_r = config.TIME_R
+    dur = d_input[list(d_input.keys())[0]].shape[1]*time_r - time_r
+    d_target = {
+        key: compute_target(entry, dur, time_r, key)
+        for key in config.TARGETS
+    }
+    d_target['ncc'] = entry.info['scores']['NCC']
+    d_target['no_annots'] = entry.info['errors']['vocals_without_annot']
+    d_target['many_annots'] = entry.info['errors']['annot_in_silence']
+    data = {**d_input, **d_target}
+    return data
+
+
 def compute_one_song(folder):
     logger = logging.getLogger('computing_spec')
     name = folder.split('/')[-3]
@@ -107,28 +124,16 @@ def compute_one_song(folder):
     output_name = os.path.join(config.PATH_BASE, name+'/features.npz')
     if name in dali and not os.path.exists(output_name):
         entry = dali[name]
-        # to be sure we are using the rigth formart
-        # print(folder.split('/')[-2], entry.info['audio']['path'])
-        if folder.split('/')[-2] in entry.info['audio']['path']:
-            try:
-                print(folder)
-                d_input = {
-                    i.split('/')[-1].replace('.wav', ''): spec_complex(i)['spec']
-                    for i in glob(folder+'/*.wav')
-                }
-                time_r = config.TIME_R
-                dur = d_input[list(d_input.keys())[0]].shape[1]*time_r - time_r
-                d_target = {
-                    key: compute_target(entry, dur, time_r, key)
-                    for key in config.TARGETS
-                }
-                d_target['ncc'] = entry.info['scores']['NCC']
-                d_target['no_annots'] = entry.info['errors']['vocals_without_annot']
-                d_target['many_annots'] = entry.info['errors']['annot_in_silence']
-                data = {**d_input, **d_target}
-                np.savez(output_name, config=get_config_as_str(), **data)
-            except Exception:
-                pass
+        if entry.info['metadata']['language'] == 'english':
+            # to be sure we are using the rigth formart
+            # print(folder.split('/')[-2], entry.info['audio']['path'])
+            if folder.split('/')[-2] in entry.info['audio']['path']:
+                try:
+                    print(folder)
+                    data = get_a_song(entry, folder)
+                    np.savez(output_name, config=get_config_as_str(), **data)
+                except Exception:
+                    pass
     else:
         logger.info('No annot for %s' % name)
     return

@@ -47,9 +47,6 @@ def main():
 
     logger.info('Starting training for %s' % config.NAME)
 
-    # USE VAL_STEPS!!
-    # https://www.tensorflow.org/tutorials/images/classification
-
     history = model.fit(
         ds_train,
         validation_data=ds_val,

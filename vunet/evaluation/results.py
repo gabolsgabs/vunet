@@ -1,5 +1,6 @@
 import librosa
 from tensorflow.keras.models import load_model
+import tensorflow as tf
 import mir_eval
 import numpy as np
 import os
@@ -164,7 +165,6 @@ def create_pandas(files):
 
 
 def load_checkpoint(path_results):
-    import tensorflow as tf
     from vunet.train.models.unet_model import unet_model
     from vunet.train.models.vunet_model import vunet_model
     path_results = os.path.join(path_results, 'checkpoint')
@@ -187,7 +187,6 @@ def load_a_unet(target=None):
         else:
             model = load_checkpoint(path_results)
     else:
-        import tensorflow as tf
         path_results = os.path.join(config.PATH_MODEL, config.MODEL_NAME)
         path_model = os.path.join(path_results, config.MODEL_NAME+'.h5')
         if os.path.exists(path_model):
