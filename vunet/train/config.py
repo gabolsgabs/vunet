@@ -16,7 +16,8 @@ class config(Config):
     MODE = setting(
         default='conditioned', standard='standard',
     )
-    NAME = 'with_aug_new_norm'
+    NAME = ''
+    COND_INPUT = 'binary'  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
     CONFIG = 'original'         # dict_cond
 
     # GENERATOR
@@ -44,8 +45,6 @@ class config(Config):
     REDUCE_PLATEAU_PATIENCE = 10
 
     # conditions
-
-    COND_INPUT = 'binary'  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
 
     CONDITION = setting(
         'phonemes', standard='phonemes',

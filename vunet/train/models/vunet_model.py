@@ -6,7 +6,6 @@ from tensorflow.keras.layers import (
 from tensorflow.keras.optimizers import Adam
 from vunet.train.models.FiLM_utils import (
     FiLM_simple_layer, FiLM_complex_layer,
-    FiLM_simple_dict_cond_layer, FiLM_complex_dict_cond_layer,
     slice_tensor, slice_tensor_range,
     shift_bit_length
 )
@@ -25,11 +24,13 @@ def u_net_conv_block(
     if film_type == 'simple' and config.CONFIG == 'original':
         x = FiLM_simple_layer()([x, gamma, beta])
     if film_type == 'simple' and config.CONFIG == 'dict_cond':
-        x = FiLM_simple_dict_cond_layer()([x, gamma, beta, input_conditions])
+        pass
+        # x = FiLM_simple_dict_cond_layer()([x, gamma, beta, input_conditions])
     if film_type == 'complex' and config.CONFIG == 'original':
         x = FiLM_complex_layer()([x, gamma, beta])
     if film_type == 'complex' and config.CONFIG == 'dict_cond':
-        x = FiLM_complex_dict_cond_layer()([x, gamma, beta, input_conditions])
+        pass
+        # x = FiLM_complex_dict_cond_layer()([x, gamma, beta, input_conditions])
     x = get_activation(activation)(x)
     return x
 

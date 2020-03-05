@@ -1,5 +1,4 @@
 import librosa
-from tensorflow.keras.models import load_model
 import tensorflow as tf
 import mir_eval
 import numpy as np
@@ -8,13 +7,55 @@ import logging
 import pandas as pd
 from vunet.evaluation.config import config
 from vunet.preprocess.config import config as config_prepro
-from vunet.train.load_data_offline import normlize_complex
+from vunet.train.config import config as config_train
 from vunet.preprocess.features import spec_complex
 from vunet.evaluation.test_ids import ids
 from vunet.train.load_data_offline import get_data
+from vunet.train.load_data_offline import normlize_complex
+from vunet.train.others.lock import get_lock
 
 
 logging.basicConfig(level=logging.INFO)
+
+
+def update_cond_shape(num_frames):
+    reshape = False
+    conditions_shape = {
+        'phonemes': 40, 'phoneme_types': 9, 'notes': 97, 'chars': 29
+    }
+    config.Z_DIM = conditions_shape[config.CONDITION]
+    if config.COND_INPUT == 'vocal_energy':
+        config.Z_DIM = 1
+    shape = (config.Z_DIM, num_frames)
+    reshape_list = ['binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy']
+    if config.COND_INPUT in reshape_list:
+        reshape = True
+    if config.CONTROL_TYPE == 'dense' and reshape:
+        shape = (1, config.Z_DIM)
+    if config.CONTROL_TYPE == 'cnn' and reshape:
+        shape = (config.Z_DIM, 1)
+    config.COND_SHAPE = shape
+    return
+
+
+def prepare_cond(data):
+    if config.COND_MATRIX == 'overlap':
+        cond = data[:, :, 0]
+    if config.COND_MATRIX == 'sequential':
+        cond = data[:, :, 1]
+    output = cond
+    if config.COND_INPUT == 'binary':
+        output = np.max(cond, axis=1)   # silence is not removed
+    if config.COND_INPUT == 'mean_dur':
+        output = np.mean(cond, axis=1)
+    if config.COND_INPUT == 'mean_dur_norm':
+        output = np.mean(cond, axis=1)
+        output = output / np.max(output)
+    if config.COND_INPUT == 'vocal_energy':
+        # just an scalar
+        output = np.mean(np.max(cond, axis=1))
+    output = np.reshape(output, config.COND_SHAPE)
+    return output
 
 
 def istft(data):
@@ -54,6 +95,25 @@ def prepare_a_song(spec, num_frames, num_bands):
             segment = np.zeros((num_bands, num_frames), dtype=np.float32)
             segment[:, :tmp] = spec[:num_bands, i:i+num_frames]
         segments[index] = np.expand_dims(np.abs(segment), axis=2)
+    return segments
+
+
+def prepare_a_condition(cond, num_frames):
+    size = cond.shape[1]
+    num_bands = cond.shape[0]
+    update_cond_shape(num_frames)
+    segments = np.zeros(
+        (size//(num_frames-config.OVERLAP)+1, *config.COND_SHAPE),
+        dtype=np.float32
+    )
+    for ndx, i in enumerate(np.arange(0, size, num_frames-config.OVERLAP)):
+        segment = np.zeros(
+            (num_bands, num_frames, cond.shape[-1]), dtype=np.float32
+        )
+        lenght = cond[:, i:i+num_frames, :].shape[1]
+        segment[:, :lenght, :] = cond[:, i:i+num_frames, :]
+        segment = prepare_cond(segment)
+        segments[ndx] = segment
     return segments
 
 
@@ -98,16 +158,11 @@ def analize_spec(model, orig_mix_spec, cond):
             num_bands, num_frames = model.input_shape[1:3]
             x = prepare_a_song(orig_mix_mag, num_frames, num_bands)
             pred_mag = model(x)
-        # if config.MODE == 'conditioned':
-        #     num_bands, num_frames = model.input_shape[0][1:3]
-        #     x = prepare_a_song(orig_mix_mag, num_frames, num_bands)
-        #     if config.EMB_TYPE == 'dense':
-        #         cond = cond.reshape(1, -1)
-        #     if config.EMB_TYPE == 'cnn':
-        #         cond = cond.reshape(-1, 1)
-        #     tmp = np.zeros((x.shape[0], *cond.shape))
-        #     tmp[:] = cond
-        #     pred_mag = model.predict([x, tmp])
+        if config.MODE == 'conditioned':
+            num_bands, num_frames = model.input_shape[0][1:3]
+            x = prepare_a_song(orig_mix_mag, num_frames, num_bands)
+            cond = prepare_a_condition(cond, num_frames)
+            pred_mag = model.predict([x, cond])
         pred_mag = np.squeeze(
             concatenate(pred_mag, orig_mix_spec.shape), axis=-1)
         pred_audio = reconstruct(pred_mag, orig_mix_phase)
@@ -178,6 +233,7 @@ def load_checkpoint(path_results):
 
 
 def load_a_unet(target=None):
+    from tensorflow.keras.models import load_model
     model = None
     if config.MODE == 'standard':
         path_results = os.path.join(config.PATH_MODEL, config.MODEL_NAME)
@@ -187,20 +243,31 @@ def load_a_unet(target=None):
         else:
             model = load_checkpoint(path_results)
     else:
-        path_results = os.path.join(config.PATH_MODEL, config.MODEL_NAME)
-        path_model = os.path.join(path_results, config.MODEL_NAME+'.h5')
+        name = ''.join([config.COND_INPUT, config.MODEL_NAME])
+        model_type = "_".join(
+            [config.CONDITION, config.FILM_TYPE, config.CONTROL_TYPE]
+        )
+        path_results = os.path.join(config.PATH_MODEL, model_type, name)
+        path_model = os.path.join(path_results, name+'.h5')
         if os.path.exists(path_model):
-            model = load_model(path_model,  custom_objects={"tf": tf})
+            from vunet.train.models.autopool import AutoPool1D
+            model = load_model(
+                path_model,
+                custom_objects={"tf": tf, 'AutoPool1D': AutoPool1D}
+            )
         else:
             model = load_checkpoint(path_results)
     return model, path_results
 
 
 def main():
+    _ = get_lock()
     config.parse_args()
+    config_train.CONDITION = config.CONDITION
+    config_train.COND_INPUT = config.COND_INPUT
+    model, path_results = load_a_unet()
     songs = get_data(ids)
     results = create_pandas(list(songs.keys()))
-    model, path_results = load_a_unet()
     file_handler = logging.FileHandler(
         os.path.join(path_results, 'results.log'),  mode='w')
     file_handler.setLevel(logging.INFO)

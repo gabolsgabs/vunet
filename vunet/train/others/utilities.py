@@ -25,6 +25,7 @@ def save_dir(t, name):
         folder = os.path.join(
             folder, "_".join((
                  config.CONDITION, config.FILM_TYPE, config.CONTROL_TYPE)))
+        name = "".join([config.COND_INPUT, name])
     folder = os.path.join(folder, name)
     create_folder(folder)
     return folder

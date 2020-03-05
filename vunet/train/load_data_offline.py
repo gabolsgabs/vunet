@@ -3,7 +3,6 @@ from vunet.train.config import config
 import logging
 import gc
 from pathlib import Path
-from joblib import Parallel, delayed
 
 
 logger = logging.getLogger('tensorflow')
@@ -84,7 +83,7 @@ def binarize(data):
     return np.expand_dims(data, axis=-1).astype(np.float32)
 
 
-def load_a_file(v, i, end):
+def load_a_file(v, i, end, condition):
     name = v.split('/')[-2]
     print('Loading the file %s %i out of %i' % (name, i, end))
     tmp = np.load(v)
@@ -103,20 +102,22 @@ def load_a_file(v, i, end):
     data['vocals'] = normlize_complex(tmp['vocals'], c_max)
     data['acc'] = normlize_complex(tmp['accompaniment'], c_max)
     data['cond'] = np.concatenate([
-        binarize(tmp[config.CONDITION]), as_categorical(tmp[config.CONDITION])
-    ], axis=-1)
+        binarize(tmp[condition]), as_categorical(tmp[condition])], axis=-1)
     data['ncc'] = tmp['ncc']
     return (name, data)
 
 
 def load_data(files):
+    from joblib import Parallel, delayed
     """The data is loaded in memory just once for the generator to have direct
     access to it"""
     # for i, v in enumerate(files):
     #     data = load_a_file(v=v, i=i, end=len(files))
     data = {
         k: v for k, v in Parallel(n_jobs=16, verbose=5)(
-                delayed(load_a_file)(v=v, i=i, end=len(files))
+                delayed(load_a_file)(
+                    v=v, i=i, end=len(files), condition=config.CONDITION
+                )
                 for i, v in enumerate(files)
             )
     }
