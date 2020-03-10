@@ -58,9 +58,8 @@ def do_matmul_time(activations, units):
     """
     # the dimension to broadcast has to be first [batch, channels, time, cond]
     a = tf.transpose(activations, perm=[0, 3, 1, 2])
-    u = tf.nn.softmax(units, axis=0)    # to keep the barycentre small
     # output tf.matmul -> [batch, channels, time, 1]
-    output = tf.matmul(a, u)
+    output = tf.matmul(a, units)
     # back to [batch, 1, time, channels], original feature map input
     return tf.transpose(output, perm=[0, 3, 2, 1])
 
@@ -88,6 +87,7 @@ class FiLM_attention(tf.keras.layers.Layer):
         learn_time_attention=False,
         learn_freq_attention=False,
         init_time_act_with_cond=False,
+        sofmax=False,
         weight_initializer='random_normal',
         weight_constraint=None,
         weight_regularizer=None,
@@ -99,6 +99,7 @@ class FiLM_attention(tf.keras.layers.Layer):
         self.learn_time_attention = learn_time_attention
         self.learn_freq_attention = learn_freq_attention
         self.init_time_act_with_cond = init_time_act_with_cond  # init
+        self.sofmax = sofmax
         self.channels = 1
         self.weight_initializer = initializers.get(weight_initializer)
         self.weight_constraint = constraints.get(weight_constraint)
@@ -151,6 +152,10 @@ class FiLM_attention(tf.keras.layers.Layer):
         shape = list(x.shape)
         shape[0] = 1        # not tile in the batch dimension
         shape[2] = 1        # not tile in the time dimension
+        if self.sofmax:
+            # to keep the barycentre small
+            self.gammas = tf.nn.softmax(self.gammas, axis=0)
+            self.betas = tf.nn.softmax(self.betas, axis=0)
         if self.config == 'complex':
             shape[-1] = 1    # not tile in the channels dimension
         if self.learn_freq_attention:
