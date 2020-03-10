@@ -8,6 +8,7 @@ class config(Config):
               'complex_cnn']
 
     RESULTS_NAME = 'results_dali.pkl'
+    CONFIG = 'sdp'
     CONDITION = 'phonemes'
     COND_INPUT = 'binary'
     COND_MATRIX = 'overlap'

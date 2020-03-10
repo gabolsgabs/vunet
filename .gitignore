@@ -1,5 +1,6 @@
 /old/*
 /vunet/preprocess/copy_features.py
+/vunet/train/models/new_film.py
 /vunet/evaluate/visualizing.py
 /vunet/evaluate/visualizing_old.py
 
