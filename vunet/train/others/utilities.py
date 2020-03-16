@@ -1,4 +1,3 @@
-from datetime import datetime
 from tensorflow.keras.callbacks import (
     ModelCheckpoint, EarlyStopping, TensorBoard, ReduceLROnPlateau
 )
@@ -25,7 +24,16 @@ def save_dir(t, name):
         folder = os.path.join(
             folder, "_".join((
                  config.CONDITION, config.FILM_TYPE, config.CONTROL_TYPE)))
-        name = "".join([config.COND_INPUT, name])
+        name = "_".join([config.COND_INPUT, name])
+    if config.MODE == 'attention':
+        folder = os.path.join(
+            folder, "_".join((
+                 config.CONDITION, config.FILM_TYPE,
+                 str(config.TIME_ATTENTION), str(config.FREQ_ATTENTION)
+            ))
+        )
+        name = "_".join([config.COND_MATRIX, str(config.WITH_SOFTMAX), name])
+    name = name.rstrip('_')
     folder = os.path.join(folder, name)
     create_folder(folder)
     return folder

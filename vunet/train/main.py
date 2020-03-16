@@ -6,6 +6,7 @@ from vunet.train.others.utilities import (
 )
 from vunet.train.config import config
 from vunet.train.models.vunet_model import vunet_model
+from vunet.train.models.vunet_attention_model import vunet_attention_model
 from vunet.train.models.unet_model import unet_model
 import os
 import json
@@ -30,6 +31,8 @@ def main():
         model = unet_model()
     if config.MODE == 'conditioned':
         model = vunet_model()
+    if config.MODE == 'attention':
+        model = vunet_attention_model()
 
     logger.info('Preparing the genrators')
     # Here to be sure that has the same config

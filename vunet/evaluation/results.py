@@ -263,7 +263,7 @@ def load_a_unet(target=None):
 def main():
     _ = get_lock()
     config.parse_args()
-    config_train.set_group(config.CONFIG)
+    # config_train.set_group(config.CONFIG)
     config_train.COND_INPUT = config.COND_INPUT
     model, path_results = load_a_unet()
     songs = get_data(ids)

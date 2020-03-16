@@ -4,29 +4,29 @@ from tensorflow.keras.layers import (
     Input, Conv2D, multiply, BatchNormalization
 )
 from tensorflow.keras.optimizers import Adam
-from vunet.train.models.FiLM_attention import FiLM_attention
+from vunet.train.models.FiLM_attention import FilmAttention
 from vunet.train.models.unet_model import get_activation, u_net_deconv_block
 from vunet.train.config import config
 
 
 def u_net_conv_block(
-    x, n_filters, initializer, gamma, beta, input_conditions, inputs,
-    activation, film_type, kernel_size=(5, 5), strides=(2, 2), padding='same'
+    x, n_filters, initializer, input_conditions, inputs,
+    activation, kernel_size=(5, 5), strides=(2, 2), padding='same'
 ):
     x = Conv2D(n_filters, kernel_size=kernel_size,  padding=padding,
                strides=strides, kernel_initializer=initializer)(x)
     x = BatchNormalization(momentum=0.9, scale=True)(x)
-    x = FiLMAttention(
-        config=film_type, units=config.Z_DIM,
-        # learn_time_attention=config.TIME_ATTENTION,
-        # learn_freq_attention=config.FREQ_ATTENTION,
+    x = FilmAttention(
+        type_gammas_betas=config.FILM_TYPE,
+        type_time_activations=config.TIME_ATTENTION,
+        type_freq_activations=config.FREQ_ATTENTION,
         sofmax=config.WITH_SOFTMAX
-    )(x, input_conditions)
+    )([x, input_conditions])
     x = get_activation(activation)(x)
     return x
 
 
-def vunet_model():
+def vunet_attention_model():
     # axis should be fr, time -> right not it's time freqs
     inputs = Input(shape=config.INPUT_SHAPE)
     n_layers = config.N_LAYERS
@@ -40,7 +40,7 @@ def vunet_model():
         n_filters = config.FILTERS_LAYER_1 * (2 ** ndx)
         x = u_net_conv_block(
             x, n_filters, initializer, input_conditions, inputs,
-            activation=config.ACTIVATION_ENCODER, film_type=config.FILM_TYPE
+            activation=config.ACTIVATION_ENCODER
         )
         encoder_layers.append(x)
     # Decoder

@@ -171,7 +171,7 @@ def prepare_condition(data):
 def convert_to_estimator_input(d):
     outputs = tf.ensure_shape(d["target"], config.INPUT_SHAPE)
     inputs = tf.ensure_shape(d['input'], config.INPUT_SHAPE)
-    if config.MODE == 'conditioned':
+    if config.MODE in ['conditioned', 'attention']:
         cond = tf.ensure_shape(d['conditions'], config.COND_SHAPE)
         inputs = (inputs, cond)
     return (inputs, outputs)
@@ -186,7 +186,7 @@ def dataset_generator(val_set=False):
     ).map(
         get_data, num_parallel_calls=config.NUM_THREADS
     )
-    if config.MODE == 'conditioned':
+    if config.MODE in ['conditioned', 'attention']:
         ds = ds.map(
             apply_to_keys(["conditions"], prepare_condition),
             num_parallel_calls=config.NUM_THREADS

@@ -13,16 +13,15 @@ class config(Config):
         'ccp', 'cct', 'ccn', 'ccc'         # complex cnn phonemes/types/notes/chars
     ]
     # General
-    MODE = setting(
-        default='conditioned', standard='standard',
-    )
+    MODE = ''   # conditioned, standard, attention
     NAME = ''
-    COND_INPUT = 'binary'  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
-    CONFIG = 'original'         # dict_cond
+    # FOR OLD VERSION
+    COND_MATRIX = 'overlap'    # sequential
+    COND_INPUT = ''  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
 
     # NEW FILM ATTENTION LAYER
-    TIME_ATTENTION = False
-    FREQ_ATTENTION = False
+    TIME_ATTENTION = None
+    FREQ_ATTENTION = None
     WITH_SOFTMAX = False
 
     # GENERATOR
@@ -58,7 +57,6 @@ class config(Config):
         scp='phonemes', sct='phoneme_types', scn='notes', scc='chars',
         ccp='phonemes', cct='phoneme_types', ccn='notes', ccc='chars'
     )
-    COND_MATRIX = 'overlap'    # sequential
     Z_DIM = setting(
         40, standard=0,
         sdp=40, sdt=9, sdn=97, sdc=29,

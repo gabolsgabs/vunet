@@ -49,17 +49,16 @@ class Controller(tf.keras.Model):
         return self.multi_function(self.activations, gamma_beta)
 
 
-class FiLMAttention(tf.keras.Model):
+class FilmAttention(tf.keras.Model):
     def __init__(
-        self, units,
+        self,
         type_gammas_betas='simple',
         type_time_activations=None,
         type_freq_activations=None,
         sofmax=False,
         **kwargs
     ):
-        super(FiLMAttention, self).__init__(**kwargs)
-        self.units = units      # num of conditions z_dim
+        super(FilmAttention, self).__init__(**kwargs)
         self.type_gammas_betas = type_gammas_betas  # simple or complex
         self.type_time_activations = type_time_activations  # simple or complex
         self.type_freq_activations = type_freq_activations  # simple or complex
@@ -68,8 +67,10 @@ class FiLMAttention(tf.keras.Model):
 
     def build(self, input_shape):
         """ input_shape -> [batch, freq, time, channles]"""
-        self.channels = input_shape[-1]
-        self.time_frames = input_shape[2]
+        data_shape, cond_shape = input_shape
+        self.units = cond_shape[1]  # z_dim
+        self.channels = data_shape[-1]
+        self.time_frames = data_shape[2]
         if self.type_gammas_betas == 'simple':
             shape_gammas_betas = [1, self.units, 1]
         if self.type_gammas_betas == 'complex':
@@ -96,15 +97,16 @@ class FiLMAttention(tf.keras.Model):
         if self.type_freq_activations is not None:
             # internal shape for matmul [batch, freq, 1, channels]
             if self.type_freq_activations == 'simple':
-                shape_freq = [1, input_shape[1], 1, 1]
+                shape_freq = [1, data_shape[1], 1, 1]
             if self.type_freq_activations == 'complex':
-                shape_freq = [1, input_shape[1], 1, self.channels]
+                shape_freq = [1, data_shape[1], 1, self.channels]
             self.freq_activations = Controller(
                 config='simple', shape=shape_freq,
                 multi_function=matmul_freq,
             )
 
-    def call(self, x, conditions):
+    def call(self, inputs):
+        x, conditions = inputs
         shape_tile = list(x.shape)
         shape_tile[0] = 1        # not tile in the batch dimension
         shape_tile[2] = 1        # not tile in the time dimension
