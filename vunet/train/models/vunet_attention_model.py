@@ -4,26 +4,24 @@ from tensorflow.keras.layers import (
     Input, Conv2D, multiply, BatchNormalization
 )
 from tensorflow.keras.optimizers import Adam
-from vunet.train.models.FiLM_utils import FiLM_attention
+from vunet.train.models.FiLM_attention import FiLM_attention
 from vunet.train.models.unet_model import get_activation, u_net_deconv_block
 from vunet.train.config import config
 
 
 def u_net_conv_block(
-    x, n_filters, initializer, gamma, beta, input_conditions,
+    x, n_filters, initializer, gamma, beta, input_conditions, inputs,
     activation, film_type, kernel_size=(5, 5), strides=(2, 2), padding='same'
 ):
     x = Conv2D(n_filters, kernel_size=kernel_size,  padding=padding,
                strides=strides, kernel_initializer=initializer)(x)
     x = BatchNormalization(momentum=0.9, scale=True)(x)
-    if film_type == 'simple':
-        x = FiLM_attention(
-            config='simple', units=config.Z_DIM
-        )(x, input_conditions)
-    if film_type == 'complex':
-        x = FiLM_attention(
-            config='complex', units=config.Z_DIM
-        )(x, input_conditions)
+    x = FiLMAttention(
+        config=film_type, units=config.Z_DIM,
+        # learn_time_attention=config.TIME_ATTENTION,
+        # learn_freq_attention=config.FREQ_ATTENTION,
+        sofmax=config.WITH_SOFTMAX
+    )(x, input_conditions)
     x = get_activation(activation)(x)
     return x
 
@@ -41,7 +39,7 @@ def vunet_model():
     for ndx in range(n_layers):
         n_filters = config.FILTERS_LAYER_1 * (2 ** ndx)
         x = u_net_conv_block(
-            x, n_filters, initializer, input_conditions,
+            x, n_filters, initializer, input_conditions, inputs,
             activation=config.ACTIVATION_ENCODER, film_type=config.FILM_TYPE
         )
         encoder_layers.append(x)

@@ -20,6 +20,11 @@ class config(Config):
     COND_INPUT = 'binary'  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
     CONFIG = 'original'         # dict_cond
 
+    # NEW FILM ATTENTION LAYER
+    TIME_ATTENTION = False
+    FREQ_ATTENTION = False
+    WITH_SOFTMAX = False
+
     # GENERATOR
     PATH_BASE = '/net/guzheng/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'   # guzheng
     # PATH_BASE = '/data3/anasynth_nonbp/meseguerbrocal/multitracks/'   # gusli

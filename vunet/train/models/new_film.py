@@ -9,6 +9,86 @@ BATCH_SIZE = 512
 DATA_SHAPE = [40, 128]
 
 
+class FiLMAttention(tf.keras.Model):
+    def __init__(
+        self,
+        units,
+        config='simple',
+        learn_time_attention=False,
+        learn_freq_attention=False,
+        sofmax=False,
+        **kwargs
+    ):
+        super(FiLMAttention, self).__init__(**kwargs)
+        self.units = units      # num of conditions z_dim
+        self.config = config    # simple or complex
+        self.learn_time_attention = learn_time_attention
+        self.learn_freq_attention = learn_freq_attention
+        self.sofmax = sofmax
+        self.channels = 1
+
+    def build(self, input_shape):
+        """ input_shape -> [batch, freq, time, channles]"""
+        if self.config == 'complex':
+            self.channels = input_shape[-1]
+        self.time_frames = input_shape[2]
+
+        self.gammas = self.add_weight(
+            shape=(self.channels, self.units, 1), trainable=True, name='gammas',
+            initializer='random_normal'
+        )
+        self.betas = self.add_weight(
+            shape=(self.channels, self.units, 1), trainable=True, name='betas',
+            initializer='random_normal'
+        )
+        # TO DO!!!It has to be learn from the cond!
+        if self.learn_time_attention:
+            # internal shape for matmul [batch, time, cond, channels]
+            shape_time = [1, self.time_frames, self.units, self.channels]
+            self.time_activations = self.add_weight(
+                shape=shape_time, trainable=True, name='time_activations',
+                initializer='random_normal'
+            )
+        # TO DO!!!It has to be learn from the spec!
+        if self.learn_freq_attention:
+            # internal shape for matmul [batch, freq, 1, channels]
+            shape_freq = [1, input_shape[1], 1, self.channels]
+            self.freq_activations = self.add_weight(
+                shape=shape_freq, trainable=True, name='freq_activations',
+                initializer='random_normal'
+            )
+
+    def call(self, x, conditions):
+        conditions = tf.expand_dims(conditions, -1)
+        # reshape for deeper layers
+        conditions = tf.image.resize(conditions, (self.units, self.time_frames))
+        # to have the right dimension [batch, time, cond, channels]
+        conditions = tf.transpose(conditions, perm=[0, 2, 1, 3])
+        shape = list(x.shape)
+        shape[0] = 1        # not tile in the batch dimension
+        shape[2] = 1        # not tile in the time dimension
+        if self.sofmax:
+            # to keep the barycentre small
+            self.gammas = tf.nn.softmax(self.gammas, axis=0)
+            self.betas = tf.nn.softmax(self.betas, axis=0)
+        if self.config == 'complex':
+            shape[-1] = 1    # not tile in the channels dimension
+        if self.learn_freq_attention:
+            shape[1] = 1    # not tile in the freq dimension
+        if not self.learn_time_attention:
+            g = matmul_time(conditions, self.gammas)
+            b = matmul_time(conditions, self.betas)
+        if self.learn_time_attention:
+            g = matmul_time(self.time_activations, self.gammas)
+            b = matmul_time(self.time_activations, self.betas)
+        if self.learn_freq_attention:
+            g = matmul_freq(self.freq_activations, g)
+            b = matmul_freq(self.freq_activations, b)
+        g = tf.tile(g, shape)
+        b = tf.tile(b, shape)
+        return tf.add(b, tf.multiply(x, g))
+
+
 @tf.function
 def my_operation0(data, my_units):
     def py_my_operation(d, u):
