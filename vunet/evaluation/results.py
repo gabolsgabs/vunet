@@ -61,7 +61,8 @@ def prepare_cond(data):
 def istft(data):
     return librosa.istft(
         data, hop_length=config_prepro.HOP,
-        win_length=config_prepro.FFT_SIZE)
+        win_length=config_prepro.FFT_SIZE
+    )
 
 
 def adapt_pred(pred, target):
@@ -158,7 +159,7 @@ def analize_spec(model, orig_mix_spec, cond):
             num_bands, num_frames = model.input_shape[1:3]
             x = prepare_a_song(orig_mix_mag, num_frames, num_bands)
             pred_mag = model(x)
-        if config.MODE == 'conditioned':
+        if config.MODE in ['conditioned', 'attention']:
             num_bands, num_frames = model.input_shape[0][1:3]
             x = prepare_a_song(orig_mix_mag, num_frames, num_bands)
             cond = prepare_a_condition(cond, num_frames)
@@ -169,6 +170,64 @@ def analize_spec(model, orig_mix_spec, cond):
     except Exception as my_error:
         logger.error(my_error)
     return pred_audio, pred_mag
+
+
+def compute_a_segment(time, value,  orig, pred):
+    init, end = [int(i) for i in time.split('_')]
+    sdr, sir, sar, perm = mir_eval.separation.bss_eval_sources(
+        reference_sources=orig[:, init:end],
+        estimated_sources=pred[:, init:end],
+        compute_permutation=False
+    )
+    value.update({
+        'sdr': sdr[perm[0]], 'sir': sir[perm[0]],
+        'sar': sar[perm[0]],
+    })
+    return value
+
+
+def metrics_per_segments(cond, orig, pred):
+    if config.COND_MATRIX == 'overlap':
+        cond = cond[:, :, 0]
+    if config.COND_MATRIX == 'sequential':
+        cond = cond[:, :, 1]
+    # Get audio segments
+    segments = {}
+    for t, i in enumerate(cond):
+        pos = np.where(i == 1)[0]
+        if len(pos) > 0:
+            init = int(pos[0]*config_prepro.TIME_R*config_prepro.FR)
+            for j in np.where(np.diff(pos) != 1)[0]:
+                end = int(pos[j]*config_prepro.TIME_R*config_prepro.FR)
+                tmp = "_".join((str(init), str(end)))
+                segments.setdefault(tmp, {})
+                segments[tmp].setdefault('features', [])
+                segments[tmp]['features'].append(t)
+                segments[tmp]['dur'] = (
+                    end/config_prepro.FR - init/config_prepro.FR
+                )
+                init = int((pos[j]+1)*config_prepro.TIME_R*config_prepro.FR)
+    # compute metric of each segment
+    from joblib import Parallel, delayed
+    tmp = Parallel(n_jobs=16, verbose=5)(
+        delayed(compute_a_segment)(time, value, orig, pred)
+        for time, value in segments.items()
+    )
+    # group the info per feature
+    output = {}
+    for value in tmp:
+        for f in value['features']:
+            output.setdefault(f, {'sdr': [], 'sir': [], 'sar': [], 'dur': []})
+            output[f]['sdr'].append(value['sdr'])
+            output[f]['sir'].append(value['sir'])
+            output[f]['sar'].append(value['sar'])
+            output[f]['dur'].append(value['dur'])
+    return {i: {
+        'sdr': np.mean(output[i]['sdr']),
+        'sir': np.mean(output[i]['sir']),
+        'sar': np.mean(output[i]['sar']),
+        'dur': np.sum(output[i]['dur'])
+    } for i in output}
 
 
 def do_an_exp(model, data):
@@ -196,8 +255,13 @@ def do_an_exp(model, data):
     orig = np.array([target[:s], acc[:s]])
     sdr, sir, sar, perm = mir_eval.separation.bss_eval_sources(
         reference_sources=orig, estimated_sources=pred,
-        compute_permutation=False)
-    return sdr[perm[0]], sir[perm[0]], sar[perm[0]]
+        compute_permutation=False
+    )
+    general = {'sdr': sdr[perm[0]], 'sir': sir[perm[0]], 'sar': sar[perm[0]]}
+    segments = {}
+    if config.PER_FEATURE:
+        segments = metrics_per_segments(data['cond'], orig, pred)
+    return general, segments
 
 
 def get_stats(dict, stat):
@@ -208,26 +272,34 @@ def get_stats(dict, stat):
     return r
 
 
-def create_pandas(files):
+def create_pandas(files, features):
     columns = ['name', 'sdr', 'sir', 'sar']
+    columns += [
+        j for i in range(features)
+        for j in ['sdr_'+str(i), 'sir_'+str(i), 'sar_'+str(i), 'dur_'+str(i)]
+    ]
     if config.MODE == 'standard':
         data = np.zeros((len(files), len(columns)))
     else:
         data = np.zeros((len(files), len(columns)))
     df = pd.DataFrame(data, columns=columns)
     df['name'] = df['name'].astype('str')
+    df = df.replace(0, np.NaN)
     return df
 
 
 def load_checkpoint(path_results):
     from vunet.train.models.unet_model import unet_model
     from vunet.train.models.vunet_model import vunet_model
+    from vunet.train.models.vunet_attention_model import vunet_attention_model
     path_results = os.path.join(path_results, 'checkpoint')
     latest = tf.train.latest_checkpoint(path_results)
     if config.MODE == 'standard':
         model = unet_model()
     if config.MODE == 'conditioned':
         model = vunet_model()
+    if config.MODE == 'attention':
+        model = vunet_attention_model()
     model.load_weights(latest)
     return model
 
@@ -236,28 +308,49 @@ def load_a_unet(target=None):
     from tensorflow.keras.models import load_model
     model = None
     if config.MODE == 'standard':
+        name = config.MODEL_NAME
         path_results = os.path.join(config.PATH_MODEL, config.MODEL_NAME)
-        path_model = os.path.join(path_results, config.MODEL_NAME+'.h5')
-        if os.path.exists(path_model):
-            model = load_model(path_model)
-        else:
-            model = load_checkpoint(path_results)
-    else:
-        name = ''.join([config.COND_INPUT, config.MODEL_NAME])
+    elif config.MODE == 'conditioned':
+        name = ''.join([config.COND_INPUT, config.MODEL_NAME]).rstrip('_')
         model_type = "_".join(
             [config.CONDITION, config.FILM_TYPE, config.CONTROL_TYPE]
         )
         path_results = os.path.join(config.PATH_MODEL, model_type, name)
-        path_model = os.path.join(path_results, name+'.h5')
-        if os.path.exists(path_model):
+    elif config.MODE == 'attention':
+        name = "_".join([
+            config.COND_MATRIX, str(config.WITH_SOFTMAX), config.MODEL_NAME
+        ]).rstrip('_')
+        model_type = "_".join((
+             config.CONDITION, config.FILM_TYPE,
+             str(config.TIME_ATTENTION), str(config.FREQ_ATTENTION)
+        ))
+        path_results = os.path.join(config.PATH_MODEL, model_type, name)
+    path_model = os.path.join(path_results, name+'.h5')
+    if os.path.exists(path_model):
+        if config.MODE == 'standard':
+            model = load_model(path_model)
+        if config.MODE == 'conditioned':
             from vunet.train.models.autopool import AutoPool1D
             model = load_model(
-                path_model,
-                custom_objects={"tf": tf, 'AutoPool1D': AutoPool1D}
+                path_model, custom_objects={"tf": tf, 'AutoPool1D': AutoPool1D}
             )
-        else:
-            model = load_checkpoint(path_results)
+        if config.MODE == 'attention':
+            model = load_model(path_model, custom_objects={"tf": tf})
+    else:
+        model = load_checkpoint(path_results)
     return model, path_results
+
+
+def store_data_in_pandas(data, df, mode, i=None):
+    if mode == 'general':
+        for metric in data:
+            df.at[i, metric] = data[metric]
+    if mode == 'features':
+        for feature, metrics in data.items():
+            for metric, value in metrics.items():
+                if not np.isnan(value):
+                    df.at[i, "_".join((metric, str(feature)))] = value
+    return df
 
 
 def main():
@@ -265,9 +358,12 @@ def main():
     config.parse_args()
     # config_train.set_group(config.CONFIG)
     config_train.COND_INPUT = config.COND_INPUT
+    config_train.FILM_TYPE = config.FILM_TYPE
     model, path_results = load_a_unet()
     songs = get_data(ids)
-    results = create_pandas(list(songs.keys()))
+    results = create_pandas(
+        list(songs.keys()), features=list(songs.values())[0]['cond'].shape[0]
+    )
     file_handler = logging.FileHandler(
         os.path.join(path_results, 'results.log'),  mode='w')
     file_handler.setLevel(logging.INFO)
@@ -278,8 +374,10 @@ def main():
         logger.info('Song num: ' + str(i+1) + ' out of ' + str(len(results)))
         results.at[i, 'name'] = name
         logger.info('Analyzing ' + name)
-        (results.at[i, 'sdr'], results.at[i, 'sir'],
-         results.at[i, 'sar']) = do_an_exp(model, data)
+        general, features = do_an_exp(model, data)
+        results = store_data_in_pandas(general, results, 'general', i)
+        if config.PER_FEATURE:
+            results = store_data_in_pandas(features, results, 'features', i)
         logger.info(results.iloc[i])
     results.to_pickle(os.path.join(path_results, config.RESULTS_NAME))
     logger.removeHandler(file_handler)

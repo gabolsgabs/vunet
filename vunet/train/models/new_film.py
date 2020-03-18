@@ -168,11 +168,11 @@ def train_model(name):
 
 if __name__ == '__main__':
     # data -> [batch_size, features, time_frames]
-    BATCH_SIZE = 512
+    BATCH_SIZE = 256
     FEATURES = 40
     TIME_FRAMES = 128
-    CHANNELS = 32
-    WHATEVER = 10
+    CHANNELS = 1
+    FREQS = 512
 
     # random data
     def get_random_data():
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     indices, values = to_sparse(batch_orig)
     batch = [what_to_expand(batch_orig[i, :, :]) for i in range(BATCH_SIZE)]
     neuros = np.random.rand(FEATURES)   # to be learnt
-    output_tensor = np.zeros([BATCH_SIZE, WHATEVER, TIME_FRAMES, CHANNELS])   # the bin dimension is not important
+    output_tensor = np.zeros([BATCH_SIZE, FREQS, TIME_FRAMES, CHANNELS])   # the bin dimension is not important
 
     # tf.sparse.SparseTensor
     # tf.sparse.sparse_dense_matmul

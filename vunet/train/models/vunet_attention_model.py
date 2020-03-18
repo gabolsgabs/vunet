@@ -20,7 +20,7 @@ def u_net_conv_block(
         type_gammas_betas=config.FILM_TYPE,
         type_time_activations=config.TIME_ATTENTION,
         type_freq_activations=config.FREQ_ATTENTION,
-        sofmax=config.WITH_SOFTMAX
+        softmax=config.WITH_SOFTMAX
     )([x, input_conditions])
     x = get_activation(activation)(x)
     return x

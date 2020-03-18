@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras.layers import Softmax
 
 
 def matmul_time(activations, units):
@@ -55,18 +56,23 @@ class FilmAttention(tf.keras.Model):
         type_gammas_betas='simple',
         type_time_activations=None,
         type_freq_activations=None,
-        sofmax=False,
+        softmax=False,
         **kwargs
     ):
         super(FilmAttention, self).__init__(**kwargs)
         self.type_gammas_betas = type_gammas_betas  # simple or complex
         self.type_time_activations = type_time_activations  # simple or complex
         self.type_freq_activations = type_freq_activations  # simple or complex
-        self.sofmax = sofmax
+        if softmax:
+            self.softmax = Softmax(axis=1)
+        else:
+            self.softmax = None
         self.channels = 1
 
     def build(self, input_shape):
-        """ input_shape -> [batch, freq, time, channles]"""
+        """ data_shape -> [batch, freq, time, channles]
+            cond_shape -> [batch, z_dim, time]
+        """
         data_shape, cond_shape = input_shape
         self.units = cond_shape[1]  # z_dim
         self.channels = data_shape[-1]
@@ -110,10 +116,12 @@ class FilmAttention(tf.keras.Model):
         shape_tile = list(x.shape)
         shape_tile[0] = 1        # not tile in the batch dimension
         shape_tile[2] = 1        # not tile in the time dimension
-        if self.sofmax:
+        gammas = self.gammas
+        betas = self.betas
+        if self.softmax is not None:
             # to keep the barycentre small
-            self.gammas = tf.nn.softmax(self.gammas, axis=0)
-            self.betas = tf.nn.softmax(self.betas, axis=0)
+            gammas = self.softmax(self.gammas)
+            betas = self.softmax(self.betas)
         if 'complex' in [
             self.type_gammas_betas, self.type_freq_activations,
             self.type_time_activations
@@ -128,14 +136,14 @@ class FilmAttention(tf.keras.Model):
                 conditions, (self.units, self.time_frames))
             # to have the right dimension [batch, time, cond, channels]
             conditions = tf.transpose(conditions, perm=[0, 2, 1, 3])
-            g = matmul_time(conditions, self.gammas)
-            b = matmul_time(conditions, self.betas)
+            gammas = matmul_time(conditions, gammas)
+            betas = matmul_time(conditions, betas)
         if self.type_time_activations is not None:
-            g = self.time_activations(self.gammas)
-            b = self.time_activations(self.betas)
+            gammas = self.time_activations(gammas)
+            betas = self.time_activations(betas)
         if self.type_freq_activations is not None:
-            g = self.freq_activations(g)
-            b = self.freq_activations(b)
-        g = tf.tile(g, shape_tile)
-        b = tf.tile(b, shape_tile)
-        return tf.add(b, tf.multiply(x, g))
+            gammas = self.freq_activations(gammas)
+            betas = self.freq_activations(betas)
+        gammas = tf.tile(gammas, shape_tile)
+        betas = tf.tile(betas, shape_tile)
+        return tf.add(betas, tf.multiply(x, gammas))

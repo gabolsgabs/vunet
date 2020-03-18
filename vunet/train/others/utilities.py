@@ -34,6 +34,7 @@ def save_dir(t, name):
         )
         name = "_".join([config.COND_MATRIX, str(config.WITH_SOFTMAX), name])
     name = name.rstrip('_')
+    config.NAME = name
     folder = os.path.join(folder, name)
     create_folder(folder)
     return folder
