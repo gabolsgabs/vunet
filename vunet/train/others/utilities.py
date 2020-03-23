@@ -32,7 +32,7 @@ def save_dir(t, name):
                  str(config.TIME_ATTENTION), str(config.FREQ_ATTENTION)
             ))
         )
-        name = "_".join([config.COND_MATRIX, str(config.WITH_SOFTMAX), name])
+        name = "_".join([config.COND_MATRIX, name])
     name = name.rstrip('_')
     config.NAME = name
     folder = os.path.join(folder, name)

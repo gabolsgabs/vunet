@@ -87,8 +87,8 @@ def get_frame(data, frame):
 
 def get_input_frame(target, data, frame, val_set):
     output = get_frame(data['mix'], frame)
-    # 33% of doing it
-    if not val_set and random.sample(range(0, 3), 1)[0] == 0 and config.AUG:
+    # 25% of doing it
+    if not val_set and random.sample(range(0, 4), 1)[0] == 0 and config.AUG:
         # just pick another point of the same track
         if random.sample(range(0, 2), 1)[0] == 0:
             # or pick a random point of another track

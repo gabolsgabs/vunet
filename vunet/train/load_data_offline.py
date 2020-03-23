@@ -122,6 +122,8 @@ def load_data(files):
             )
     }
     _ = gc.collect()
+    from joblib.externals.loky import get_reusable_executor
+    get_reusable_executor().shutdown(wait=True)
     return data
 
 

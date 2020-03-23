@@ -18,9 +18,8 @@ def u_net_conv_block(
     x = BatchNormalization(momentum=0.9, scale=True)(x)
     x = FilmAttention(
         type_gammas_betas=config.FILM_TYPE,
-        type_time_activations=config.TIME_ATTENTION,
-        type_freq_activations=config.FREQ_ATTENTION,
-        softmax=config.WITH_SOFTMAX
+        do_time_attention=config.TIME_ATTENTION,
+        do_freq_attention=config.FREQ_ATTENTION,
     )([x, input_conditions])
     x = get_activation(activation)(x)
     return x

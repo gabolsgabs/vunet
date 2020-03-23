@@ -5,6 +5,7 @@ import numpy as np
 import os
 import logging
 import pandas as pd
+import gc
 from vunet.evaluation.config import config
 from vunet.preprocess.config import config as config_prepro
 from vunet.train.config import config as config_train
@@ -187,6 +188,7 @@ def compute_a_segment(time, value,  orig, pred):
 
 
 def metrics_per_segments(cond, orig, pred):
+    metrics = ['sdr', 'sir', 'sar', 'dur']
     if config.COND_MATRIX == 'overlap':
         cond = cond[:, :, 0]
     if config.COND_MATRIX == 'sequential':
@@ -215,18 +217,19 @@ def metrics_per_segments(cond, orig, pred):
     )
     # group the info per feature
     output = {}
+    output.setdefault(40, {m: [] for m in metrics})
     for value in tmp:
-        for f in value['features']:
-            output.setdefault(f, {'sdr': [], 'sir': [], 'sar': [], 'dur': []})
-            output[f]['sdr'].append(value['sdr'])
-            output[f]['sir'].append(value['sir'])
-            output[f]['sar'].append(value['sar'])
-            output[f]['dur'].append(value['dur'])
+        for i, f in enumerate(value['features']):
+            output.setdefault(f, {m: [] for m in metrics})
+            for m in metrics:
+                output[f][m].append(value[m])
+            if f != 39 and i == 0:     # silence features -> just once
+                for m in metrics:
+                    output[40][m].append(value[m])
+    # mean per feature
     return {i: {
-        'sdr': np.mean(output[i]['sdr']),
-        'sir': np.mean(output[i]['sir']),
-        'sar': np.mean(output[i]['sar']),
-        'dur': np.sum(output[i]['dur'])
+        m: np.mean(output[i][m]) if m != 'dur' else np.sum(output[i][m])
+        for m in metrics
     } for i in output}
 
 
@@ -261,6 +264,9 @@ def do_an_exp(model, data):
     segments = {}
     if config.PER_FEATURE:
         segments = metrics_per_segments(data['cond'], orig, pred)
+        from joblib.externals.loky import get_reusable_executor
+        get_reusable_executor().shutdown(wait=True)
+    gc.collect()
     return general, segments
 
 
@@ -275,7 +281,7 @@ def get_stats(dict, stat):
 def create_pandas(files, features):
     columns = ['name', 'sdr', 'sir', 'sar']
     columns += [
-        j for i in range(features)
+        j for i in range(features+1)    # for no silence feature
         for j in ['sdr_'+str(i), 'sir_'+str(i), 'sar_'+str(i), 'dur_'+str(i)]
     ]
     if config.MODE == 'standard':
@@ -318,7 +324,7 @@ def load_a_unet(target=None):
         path_results = os.path.join(config.PATH_MODEL, model_type, name)
     elif config.MODE == 'attention':
         name = "_".join([
-            config.COND_MATRIX, str(config.WITH_SOFTMAX), config.MODEL_NAME
+            config.COND_MATRIX, config.MODEL_NAME
         ]).rstrip('_')
         model_type = "_".join((
              config.CONDITION, config.FILM_TYPE,
@@ -354,7 +360,7 @@ def store_data_in_pandas(data, df, mode, i=None):
 
 
 def main():
-    _ = get_lock()
+    # _ = get_lock()
     config.parse_args()
     # config_train.set_group(config.CONFIG)
     config_train.COND_INPUT = config.COND_INPUT
@@ -369,7 +375,7 @@ def main():
     file_handler.setLevel(logging.INFO)
     logger = logging.getLogger('results')
     logger.addHandler(file_handler)
-    logger.info('Starting the computation')
+    logger.info('Starting the computation for model ' + path_results)
     for i, (name, data) in enumerate(songs.items()):
         logger.info('Song num: ' + str(i+1) + ' out of ' + str(len(results)))
         results.at[i, 'name'] = name

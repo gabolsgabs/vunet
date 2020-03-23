@@ -20,9 +20,8 @@ class config(Config):
     COND_INPUT = ''  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
 
     # NEW FILM ATTENTION LAYER
-    TIME_ATTENTION = None
-    FREQ_ATTENTION = None
-    WITH_SOFTMAX = False
+    TIME_ATTENTION = False
+    FREQ_ATTENTION = False
 
     # GENERATOR
     PATH_BASE = '/net/guzheng/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'   # guzheng
@@ -45,8 +44,8 @@ class config(Config):
 
     # checkpoints
     EARLY_STOPPING_MIN_DELTA = 1e-5
-    EARLY_STOPPING_PATIENCE = 20
-    REDUCE_PLATEAU_PATIENCE = 10
+    EARLY_STOPPING_PATIENCE = 30
+    REDUCE_PLATEAU_PATIENCE = 15
 
     # conditions
 

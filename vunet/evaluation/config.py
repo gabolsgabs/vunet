@@ -7,17 +7,16 @@ class config(Config):
     groups = ['standard', 'conditioned', 'attention']
 
     MODEL_NAME = ''
-    RESULTS_NAME = 'results_dali.pkl'
+    RESULTS_NAME = 'results_dali_per_feature.pkl'
     CONFIG = 'sdp'
     CONDITION = 'phonemes'
     PER_FEATURE = False
     COND_MATRIX = 'overlap'
     FILM_TYPE = 'simple'
     # original conditioned
-    COND_INPUT = '' # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
+    COND_INPUT = ''  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
     CONTROL_TYPE = 'dense'
     # attention
-    WITH_SOFTMAX = False     # False or True
     TIME_ATTENTION = None
     FREQ_ATTENTION = None
 
