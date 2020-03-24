@@ -18,19 +18,19 @@ def matmul_time(activations, units):
 
 def matmul_freq(activations, units):
     """
-    activations -> [batch, time, freq, channels]
+    activations -> [batch, freq, time, channels]
     units -> [batch, 1, time, channels]
-    expected matmul -> [freq, 1] x [1, time] = [freq, time]
+    expected matmul -> [freq, time] x [time, time] = [freq, time]
     """
     # tile time in the 'freq' axis -> [batch, time, time, channels]
-    u = tf.tile(units, [1, list(activations.shape)[1], 1, 1])
+    u = tf.tile(units, [1, list(activations.shape)[2], 1, 1])
     # the dimension to broadcast has to be first [batch, channels, freq, time]
     a = tf.transpose(activations, perm=[0, 3, 1, 2])
     u = tf.transpose(u, perm=[0, 3, 1, 2])
-    # output tf.matmul -> [batch, channels, time, freq]
-    output = tf.matmul(u, a)
+    # output tf.matmul -> [batch, channels, freq, time]
+    output = tf.matmul(a, u)
     # back to [batch, freq, time, channels], original feature map input
-    return tf.transpose(output, perm=[0, 3, 2, 1])
+    return tf.transpose(output, perm=[0, 2, 3, 1])
 
 
 def dot_product_attention(q, k, v):
@@ -44,7 +44,8 @@ def dot_product_attention(q, k, v):
 
 class MultiHeadAttention(tf.keras.Model):
     def __init__(
-        self, units, length, num_heads=config.NUM_HEADS, **kwargs
+        self, units, length, output_channels, num_heads=config.NUM_HEADS,
+        **kwargs
     ):
         """ Adaptation from
         https://www.tensorflow.org/tutorials/text/transformer
@@ -54,6 +55,7 @@ class MultiHeadAttention(tf.keras.Model):
         self.num_heads = num_heads
         self.units = units
         self.length = length
+        self.output_channels = output_channels
         # queries
         self.wq = tf.keras.layers.Dense(
             units*num_heads, trainable=True, kernel_initializer='random_normal'
@@ -68,7 +70,8 @@ class MultiHeadAttention(tf.keras.Model):
         )
         # merge the different heads
         self.dense = tf.keras.layers.Dense(
-            units, trainable=True, kernel_initializer='random_normal'
+            units*output_channels, trainable=True,
+            kernel_initializer='random_normal'
         )
 
     def split_heads(self, x):
@@ -101,7 +104,11 @@ class MultiHeadAttention(tf.keras.Model):
         concat_attention = tf.reshape(
             scaled_attention, (config.BATCH_SIZE, -1, self.units*self.num_heads)
         )
-        output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
+        # [batch_size, seq_len_q, units*output_channels]
+        output = self.dense(concat_attention)
+        output = tf.reshape(
+            output, (config.BATCH_SIZE, -1, self.units, self.output_channels)
+        )
         return output, attention_weights
 
 
@@ -143,13 +150,14 @@ class FilmAttention(tf.keras.Model):
         # Attention in time
         if self.do_time_attention:
             self.time_attention = MultiHeadAttention(
-                units=self.units, length=self.time_frames
+                units=self.units, length=self.time_frames, output_channels=1
             )
         # Attention in freq
         if self.do_freq_attention:
             # units = n_freqs
             self.freq_attention = MultiHeadAttention(
-                units=self.time_frames, length=data_shape[1]
+                units=self.time_frames, length=data_shape[1],
+                output_channels=data_shape[-1]
             )
 
     def title_shape(self, shape):
@@ -191,7 +199,6 @@ class FilmAttention(tf.keras.Model):
             x_att = self.merge_two_last(tf.transpose(x, perm=[0, 2, 1, 3]))
             # the new conditions overwrite the original ones
             conditions, _ = self.time_attention(cond_att, cond_att, x_att)
-            conditions = tf.expand_dims(conditions, -1)
 
         gammas = matmul_time(conditions, self.gammas)
         betas = matmul_time(conditions, self.betas)
