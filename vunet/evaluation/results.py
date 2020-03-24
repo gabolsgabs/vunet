@@ -324,14 +324,13 @@ def load_a_unet(target=None):
         path_results = os.path.join(config.PATH_MODEL, model_type, name)
     elif config.MODE == 'attention':
         name = "_".join([
-            config.COND_MATRIX, config.MODEL_NAME
+            config.COND_MATRIX, str(config.TIME_ATTENTION),
+            str(config.FREQ_ATTENTION), config.MODEL_NAME
         ]).rstrip('_')
-        model_type = "_".join((
-             config.CONDITION, config.FILM_TYPE,
-             str(config.TIME_ATTENTION), str(config.FREQ_ATTENTION)
-        ))
+        model_type = "_".join((config.CONDITION, config.FILM_TYPE))
         path_results = os.path.join(config.PATH_MODEL, model_type, name)
     path_model = os.path.join(path_results, name+'.h5')
+
     if os.path.exists(path_model):
         if config.MODE == 'standard':
             model = load_model(path_model)

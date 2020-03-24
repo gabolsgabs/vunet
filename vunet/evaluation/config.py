@@ -17,8 +17,8 @@ class config(Config):
     COND_INPUT = ''  # 'binary', 'mean_dur', 'mean_dur_norm', 'vocal_energy', 'autopool'
     CONTROL_TYPE = 'dense'
     # attention
-    TIME_ATTENTION = None
-    FREQ_ATTENTION = None
+    TIME_ATTENTION = False
+    FREQ_ATTENTION = False
 
     OVERLAP = 0
     MODE = setting('conditioned', standard='standard', attention='attention')

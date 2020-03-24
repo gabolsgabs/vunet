@@ -27,12 +27,12 @@ def save_dir(t, name):
         name = "_".join([config.COND_INPUT, name])
     if config.MODE == 'attention':
         folder = os.path.join(
-            folder, "_".join((
-                 config.CONDITION, config.FILM_TYPE,
-                 str(config.TIME_ATTENTION), str(config.FREQ_ATTENTION)
-            ))
+            folder, "_".join((config.CONDITION, config.FILM_TYPE))
         )
-        name = "_".join([config.COND_MATRIX, name])
+        name = "_".join([
+            config.COND_MATRIX, str(config.TIME_ATTENTION),
+            str(config.FREQ_ATTENTION), name
+        ])
     name = name.rstrip('_')
     config.NAME = name
     folder = os.path.join(folder, name)

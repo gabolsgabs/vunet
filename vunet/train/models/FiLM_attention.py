@@ -44,7 +44,7 @@ def dot_product_attention(q, k, v):
 
 class MultiHeadAttention(tf.keras.Model):
     def __init__(
-        self, units, time_frames, num_heads=4, **kwargs
+        self, units, length, num_heads=config.NUM_HEADS, **kwargs
     ):
         """ Adaptation from
         https://www.tensorflow.org/tutorials/text/transformer
@@ -53,7 +53,7 @@ class MultiHeadAttention(tf.keras.Model):
         # attention
         self.num_heads = num_heads
         self.units = units
-        self.time_frames = time_frames
+        self.length = length
         # queries
         self.wq = tf.keras.layers.Dense(
             units*num_heads, trainable=True, kernel_initializer='random_normal'
@@ -68,41 +68,41 @@ class MultiHeadAttention(tf.keras.Model):
         )
         # merge the different heads
         self.dense = tf.keras.layers.Dense(
-            1, trainable=True, kernel_initializer='random_normal'
+            units, trainable=True, kernel_initializer='random_normal'
         )
 
-    def split_heads(self, x, channels):
-        """Split the last dimension into (num_heads, depth).
+    def split_heads(self, x):
+        """Split the last dimension into (num_heads, units).
         Transpose the result such that the shape is
-        (batch_size, num_heads, channels, time, units)
+        (batch_size, num_heads, time, units)
         """
-        # [batch, time, channels, num_heads, units]
+        # [batch, time, num_heads, units]
         x = tf.reshape(
-            x, (config.BATCH_SIZE, self.time_frames, channels,
-                self.num_heads, self.units)
+            x, (config.BATCH_SIZE, self.length, self.num_heads, self.units)
         )
-        return tf.transpose(x, perm=[0, 3, 2, 1, 4])
+        return tf.transpose(x, perm=[0, 2, 1, 3])
 
     def call(self, v, k, q):
         # get queries and keys
-        q = self.wq(q)  # [batch_size, len_q, channels_q, units*num_heads]
-        k = self.wk(k)  # [batch_size, len_k, channels_k, units*num_heads]
-        v = self.wv(v)  # [batch_size, len_k, channels_v, units*num_heads]
-
-        # [batch_size, num_heads, channels_q, len_q, units]
-        q = self.split_heads(q, list(q.shape)[2])
-        # [batch_size, num_heads, channels_k, len_k, units]
-        k = self.split_heads(k, list(k.shape)[2])
-        # [batch_size, num_heads, channels_v, len_k, units]
-        v = self.split_heads(v, list(v.shape)[2])
-
-        # scaled -> [batch_size, num_heads, channels, seq_len_q, units]
-        # attention -> [batch_size, num_heads, channels, seq_len_q, seq_len_k]
+        q = self.wq(q)  # [batch_size, len_q, units*num_heads]
+        k = self.wk(k)  # [batch_size, len_k, units*num_heads]
+        v = self.wv(v)  # [batch_size, len_k, units*num_heads]
+        # [batch_size, num_heads, len_q, units]
+        q = self.split_heads(q)
+        # [batch_size, num_heads, len_k, units]
+        k = self.split_heads(k)
+        # [batch_size, num_heads, len_k, units]
+        v = self.split_heads(v)
+        # scaled -> [batch_size, num_heads, seq_len_q, units]
+        # attention -> [batch_size, num_heads, seq_len_q, seq_len_k]
         scaled_attention, attention_weights = dot_product_attention(q, k, v)
         # [batch_size, seq_len_q, units, channels, num_heads]
-        scaled_attention = tf.transpose(scaled_attention, perm=[0, 3, 4, 2, 1])
-        output = self.dense(scaled_attention)  # (batch_size, seq_len_q, d_model)
-        return tf.squeeze(output, axis=-1)   # [batch, time, units, channels]
+        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])
+        concat_attention = tf.reshape(
+            scaled_attention, (config.BATCH_SIZE, -1, self.units*self.num_heads)
+        )
+        output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
+        return output, attention_weights
 
 
 class FilmAttention(tf.keras.Model):
@@ -143,13 +143,13 @@ class FilmAttention(tf.keras.Model):
         # Attention in time
         if self.do_time_attention:
             self.time_attention = MultiHeadAttention(
-                units=self.units, time_frames=self.time_frames
+                units=self.units, length=self.time_frames
             )
         # Attention in freq
         if self.do_freq_attention:
             # units = n_freqs
             self.freq_attention = MultiHeadAttention(
-                units=data_shape[1], time_frames=self.time_frames
+                units=self.time_frames, length=data_shape[1]
             )
 
     def title_shape(self, shape):
@@ -171,29 +171,36 @@ class FilmAttention(tf.keras.Model):
         )
         return tf.nn.softmax(conditions, axis=1)
 
+    def merge_two_last(self, data):
+        # merge channels and features
+        shape = list(data.shape)
+        return tf.reshape(
+            data, (config.BATCH_SIZE, shape[1], shape[-1]*shape[-2])
+        )
+
     def call(self, inputs):
         x, conditions = inputs
-        gammas = self.gammas
-        betas = self.betas
         # we use the original ones
         conditions = self.prepare_cond(conditions)
         # to have the right dimension [batch, time, cond, channels] for direct mult
         conditions = tf.transpose(conditions, perm=[0, 2, 1, 3])
-        # [batch, time, channels, features] for attention
-        x_att = tf.transpose(x, perm=[0, 2, 3, 1])
-
         # OPERATIONS
         if self.do_time_attention:  # unless do attention in time
-            cond_att = tf.transpose(conditions, perm=[0, 1, 3, 2])
+            cond_att = self.merge_two_last(conditions)
+            # [batch, time, features, channels] for attention
+            x_att = self.merge_two_last(tf.transpose(x, perm=[0, 2, 1, 3]))
             # the new conditions overwrite the original ones
-            conditions = self.time_attention(cond_att, cond_att, x_att)
-            conditions = self.time_attention(cond_att, cond_att, x_att)
+            conditions, _ = self.time_attention(cond_att, cond_att, x_att)
+            conditions = tf.expand_dims(conditions, -1)
 
-        gammas = matmul_time(conditions, gammas)
-        betas = matmul_time(conditions, betas)
+        gammas = matmul_time(conditions, self.gammas)
+        betas = matmul_time(conditions, self.betas)
+
         if self.do_freq_attention:
-            freqs = self.freq_attention(x_att, x_att, x_att)
-            freqs = self.freq_attention(x_att, x_att, x_att)
+            # [batch, features, time, channels] for attention
+            x_att = self.merge_two_last(x)
+            # to use the note info??
+            freqs, _ = self.freq_attention(x_att, x_att, x_att)
             gammas = matmul_freq(freqs, gammas)
             betas = matmul_freq(freqs, betas)
 

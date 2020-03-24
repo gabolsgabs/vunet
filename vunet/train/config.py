@@ -22,6 +22,7 @@ class config(Config):
     # NEW FILM ATTENTION LAYER
     TIME_ATTENTION = False
     FREQ_ATTENTION = False
+    NUM_HEADS = 4
 
     # GENERATOR
     PATH_BASE = '/net/guzheng/data2/anasynth_nonbp/meseguerbrocal/source_separation/multitracks/'   # guzheng
