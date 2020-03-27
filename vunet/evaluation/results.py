@@ -19,6 +19,13 @@ from vunet.train.others.lock import get_lock
 logging.basicConfig(level=logging.INFO)
 
 
+def update_config():
+    config_train.COND_INPUT = config.COND_INPUT
+    config_train.FILM_TYPE = config.FILM_TYPE
+    config_train.TIME_ATTENTION = config.TIME_ATTENTION
+    config_train.FREQ_ATTENTION = config.FREQ_ATTENTION
+    
+
 def update_cond_shape(num_frames):
     reshape = False
     conditions_shape = {
@@ -330,7 +337,6 @@ def load_a_unet(target=None):
         model_type = "_".join((config.CONDITION, config.FILM_TYPE))
         path_results = os.path.join(config.PATH_MODEL, model_type, name)
     path_model = os.path.join(path_results, name+'.h5')
-
     if os.path.exists(path_model):
         if config.MODE == 'standard':
             model = load_model(path_model)
@@ -362,8 +368,7 @@ def main():
     # _ = get_lock()
     config.parse_args()
     # config_train.set_group(config.CONFIG)
-    config_train.COND_INPUT = config.COND_INPUT
-    config_train.FILM_TYPE = config.FILM_TYPE
+    update_config()
     model, path_results = load_a_unet()
     songs = get_data(ids)
     results = create_pandas(

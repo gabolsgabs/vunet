@@ -74,40 +74,40 @@ class MultiHeadAttention(tf.keras.Model):
             kernel_initializer='random_normal'
         )
 
-    def split_heads(self, x):
+    def split_heads(self, x, batch_size):
         """Split the last dimension into (num_heads, units).
         Transpose the result such that the shape is
         (batch_size, num_heads, time, units)
         """
         # [batch, time, num_heads, units]
-        x = tf.reshape(
-            x, (config.BATCH_SIZE, self.length, self.num_heads, self.units)
-        )
+        x = tf.reshape(x, (batch_size, self.length, self.num_heads, self.units))
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
-    def call(self, v, k, q):
+    def call(self, inputs):
+        v, k, q = inputs
+        batch_size = tf.shape(q)[0]
         # get queries and keys
         q = self.wq(q)  # [batch_size, len_q, units*num_heads]
         k = self.wk(k)  # [batch_size, len_k, units*num_heads]
         v = self.wv(v)  # [batch_size, len_k, units*num_heads]
         # [batch_size, num_heads, len_q, units]
-        q = self.split_heads(q)
+        q = self.split_heads(q, batch_size)
         # [batch_size, num_heads, len_k, units]
-        k = self.split_heads(k)
+        k = self.split_heads(k, batch_size)
         # [batch_size, num_heads, len_k, units]
-        v = self.split_heads(v)
+        v = self.split_heads(v, batch_size)
         # scaled -> [batch_size, num_heads, seq_len_q, units]
         # attention -> [batch_size, num_heads, seq_len_q, seq_len_k]
         scaled_attention, attention_weights = dot_product_attention(q, k, v)
         # [batch_size, seq_len_q, units, channels, num_heads]
         scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])
         concat_attention = tf.reshape(
-            scaled_attention, (config.BATCH_SIZE, -1, self.units*self.num_heads)
+            scaled_attention, (batch_size, -1, self.units*self.num_heads)
         )
         # [batch_size, seq_len_q, units*output_channels]
         output = self.dense(concat_attention)
         output = tf.reshape(
-            output, (config.BATCH_SIZE, -1, self.units, self.output_channels)
+            output, (batch_size, -1, self.units, self.output_channels)
         )
         return output, attention_weights
 
@@ -182,9 +182,8 @@ class FilmAttention(tf.keras.Model):
     def merge_two_last(self, data):
         # merge channels and features
         shape = list(data.shape)
-        return tf.reshape(
-            data, (config.BATCH_SIZE, shape[1], shape[-1]*shape[-2])
-        )
+        batch_size = tf.shape(data)[0]
+        return tf.reshape(data, (batch_size, shape[1], shape[-1]*shape[-2]))
 
     def call(self, inputs):
         x, conditions = inputs
@@ -198,7 +197,7 @@ class FilmAttention(tf.keras.Model):
             # [batch, time, features, channels] for attention
             x_att = self.merge_two_last(tf.transpose(x, perm=[0, 2, 1, 3]))
             # the new conditions overwrite the original ones
-            conditions, _ = self.time_attention(cond_att, cond_att, x_att)
+            conditions, _ = self.time_attention([cond_att, cond_att, x_att])
 
         gammas = matmul_time(conditions, self.gammas)
         betas = matmul_time(conditions, self.betas)
@@ -207,7 +206,7 @@ class FilmAttention(tf.keras.Model):
             # [batch, features, time, channels] for attention
             x_att = self.merge_two_last(x)
             # to use the note info??
-            freqs, _ = self.freq_attention(x_att, x_att, x_att)
+            freqs, _ = self.freq_attention([x_att, x_att, x_att])
             gammas = matmul_freq(freqs, gammas)
             betas = matmul_freq(freqs, betas)
 

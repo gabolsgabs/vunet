@@ -3,6 +3,7 @@
 /vunet/train/models/new_film.py
 /vunet/evaluate/visualizing.py
 /vunet/evaluate/visualizing_old.py
+/vunet/train/models/FiLM_bk.py
 
 
 .replicate

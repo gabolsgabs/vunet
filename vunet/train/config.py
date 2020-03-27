@@ -22,6 +22,7 @@ class config(Config):
     # NEW FILM ATTENTION LAYER
     TIME_ATTENTION = False
     FREQ_ATTENTION = False
+    ATTENTION_UNITS = 64
     NUM_HEADS = 4
 
     # GENERATOR
