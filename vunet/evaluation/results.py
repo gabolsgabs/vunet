@@ -6,6 +6,7 @@ import os
 import logging
 import pandas as pd
 import gc
+from vunet.evaluation.silent_frames_evaluation import eval_silent_frames
 from vunet.evaluation.config import config
 from vunet.preprocess.config import config as config_prepro
 from vunet.train.config import config as config_train
@@ -20,11 +21,14 @@ logging.basicConfig(level=logging.INFO)
 
 
 def update_config():
+    config_train.CONTROL_TYPE = config.CONTROL_TYPE
     config_train.COND_INPUT = config.COND_INPUT
     config_train.FILM_TYPE = config.FILM_TYPE
     config_train.TIME_ATTENTION = config.TIME_ATTENTION
     config_train.FREQ_ATTENTION = config.FREQ_ATTENTION
-    
+    config_train.COND_MATRIX = config.COND_MATRIX
+    config_train.NAME = config.MODEL_NAME
+
 
 def update_cond_shape(num_frames):
     reshape = False
@@ -217,10 +221,13 @@ def metrics_per_segments(cond, orig, pred):
                 )
                 init = int((pos[j]+1)*config_prepro.TIME_R*config_prepro.FR)
     # compute metric of each segment
+
+    # mir_eval.separation.bss_eval_sources_framewise
+
     from joblib import Parallel, delayed
     tmp = Parallel(n_jobs=16, verbose=5)(
         delayed(compute_a_segment)(time, value, orig, pred)
-        for time, value in segments.items()
+        for time, value in segments.items() if value['dur'] != 0.0
     )
     # group the info per feature
     output = {}
@@ -267,7 +274,14 @@ def do_an_exp(model, data):
         reference_sources=orig, estimated_sources=pred,
         compute_permutation=False
     )
-    general = {'sdr': sdr[perm[0]], 'sir': sir[perm[0]], 'sar': sar[perm[0]]}
+
+    pes, eps, _, _ = eval_silent_frames(
+        orig[0, :], pred[0, :], window_size=int(8196/5), hop_size=int(8196/10))
+
+    general = {
+        'sdr': sdr[perm[0]], 'sir': sir[perm[0]], 'sar': sar[perm[0]],
+        'pes': np.mean(pes), 'eps': np.mean(eps)
+    }
     segments = {}
     if config.PER_FEATURE:
         segments = metrics_per_segments(data['cond'], orig, pred)
@@ -286,15 +300,15 @@ def get_stats(dict, stat):
 
 
 def create_pandas(files, features):
-    columns = ['name', 'sdr', 'sir', 'sar']
-    columns += [
-        j for i in range(features+1)    # for no silence feature
-        for j in ['sdr_'+str(i), 'sir_'+str(i), 'sar_'+str(i), 'dur_'+str(i)]
-    ]
-    if config.MODE == 'standard':
-        data = np.zeros((len(files), len(columns)))
-    else:
-        data = np.zeros((len(files), len(columns)))
+    columns = ['name', 'sdr', 'sir', 'sar', 'pes', 'eps']
+    if config.PER_FEATURE:
+        columns += [
+            j for i in range(features+1)    # for no silence feature
+            for j in [
+                'sdr_'+str(i), 'sir_'+str(i), 'sar_'+str(i), 'dur_'+str(i)
+            ]
+        ]
+    data = np.zeros((len(files), len(columns)))
     df = pd.DataFrame(data, columns=columns)
     df['name'] = df['name'].astype('str')
     df = df.replace(0, np.NaN)
@@ -317,7 +331,7 @@ def load_checkpoint(path_results):
     return model
 
 
-def load_a_unet(target=None):
+def load_a_unet():
     from tensorflow.keras.models import load_model
     model = None
     if config.MODE == 'standard':
@@ -355,7 +369,8 @@ def load_a_unet(target=None):
 def store_data_in_pandas(data, df, mode, i=None):
     if mode == 'general':
         for metric in data:
-            df.at[i, metric] = data[metric]
+            if not np.isnan(data[metric]):
+                df.at[i, metric] = data[metric]
     if mode == 'features':
         for feature, metrics in data.items():
             for metric, value in metrics.items():

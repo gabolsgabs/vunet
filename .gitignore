@@ -4,6 +4,7 @@
 /vunet/evaluate/visualizing.py
 /vunet/evaluate/visualizing_old.py
 /vunet/train/models/FiLM_bk.py
+/vunet/train/models/HierarchicalSelfAttention.py
 
 
 .replicate

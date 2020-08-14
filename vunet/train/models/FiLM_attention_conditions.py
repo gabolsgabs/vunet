@@ -177,7 +177,10 @@ class FilmAttention(tf.keras.Model):
         conditions = tf.image.resize(
             conditions, (self.units, self.time_frames), method='nearest'
         )
-        return tf.nn.softmax(conditions, axis=1)
+        conditions = tf.nn.softmax(conditions, axis=1)
+        # to have the right dimension [batch, time, cond, channels] for direct mult
+        conditions = tf.transpose(conditions, perm=[0, 2, 1, 3])
+        return conditions
 
     def merge_two_last(self, data):
         # merge channels and features
@@ -189,8 +192,6 @@ class FilmAttention(tf.keras.Model):
         x, conditions = inputs
         # we use the original ones
         conditions = self.prepare_cond(conditions)
-        # to have the right dimension [batch, time, cond, channels] for direct mult
-        conditions = tf.transpose(conditions, perm=[0, 2, 1, 3])
         # OPERATIONS
         if self.do_time_attention:  # unless do attention in time
             cond_att = self.merge_two_last(conditions)

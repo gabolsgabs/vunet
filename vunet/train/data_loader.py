@@ -134,7 +134,8 @@ def load_indexes_file(val_set=False):
         # files = [k for k, v in DATA.items() if v['ncc'] < config.VAL]
         files = [
             k for k, v in DATA.items()
-            if v['ncc'] < config.TEST and v['ncc'] >= config.TRAIN
+            # if v['ncc'] < config.TEST and v['ncc'] >= config.TRAIN
+            if v['ncc'] < config.VAL and v['ncc'] >= config.TRAIN
         ]
     else:
         indexes = np.load(config.INDEXES_VAL, allow_pickle=True)['indexes']

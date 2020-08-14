@@ -86,17 +86,17 @@ class MultiHeadAttention(tf.keras.Model):
         return output, attention_weights
 
 
-def matmul_time(activations, units):
+def my_matmul(activations, units):
     """
     activations -> [batch, time, cond, channels]
-    units -> [channels, cond, 1]
-    expected matmul -> [time, cond] x [cond, 1] = [time, 1]
+    units -> [channels, cond, freqs]
+    expected matmul -> [time, cond] x [cond, freqs] = [time, freqs]
     """
     # the dimension to broadcast has to be first [batch, channels, time, cond]
     a = tf.transpose(activations, perm=[0, 3, 1, 2])
-    # output tf.matmul -> [batch, channels, time, 1]
+    # output tf.matmul -> [batch, channels, time, freqs]
     output = tf.matmul(a, units)
-    # back to [batch, 1, time, channels], original feature map input
+    # back to [batch, freqs, time, channels], original feature map input
     return tf.transpose(output, perm=[0, 3, 2, 1])
 
 
@@ -104,12 +104,16 @@ class FilmAttention(tf.keras.Model):
     def __init__(
         self,
         type_gammas_betas='simple',
+        in_freq=False,
         mode='time',     # time or sequence
+        embed_time=False,
         **kwargs
     ):
         super(FilmAttention, self).__init__(**kwargs)
         self.type_gammas_betas = type_gammas_betas  # simple or complex
         self.mode = mode
+        self.in_freq = in_freq
+        self.embed_time = embed_time
 
     def build(self, input_shape):
         """ data_shape -> [batch, freq, time, channles]
@@ -123,6 +127,8 @@ class FilmAttention(tf.keras.Model):
             shape_gammas_betas = [1, self.z_dim, 1]
         if self.type_gammas_betas == 'complex':
             shape_gammas_betas = [self.channels, self.z_dim, 1]
+        if self.in_freq:
+            shape_gammas_betas[-1] = data_shape[1]
 
         self.gammas = self.add_weight(
             shape=shape_gammas_betas, trainable=True,
@@ -132,16 +138,29 @@ class FilmAttention(tf.keras.Model):
             shape=shape_gammas_betas, trainable=True,
             name='betas', initializer='random_normal'
         )
-        # una para gammas otra para betas?
-        self.attention = MultiHeadAttention(length=self.time_frames)
+
+        if self.embed_time:
+            self.dense_time = tf.keras.layers.Dense(
+                self.time_frames*self.z_dim, trainable=True,
+                kernel_initializer='random_normal'
+            )
+        # # una para gammas otra para betas?
+        # self.attention = MultiHeadAttention(length=self.time_frames)
 
     def prepare_cond(self, conditions):
         conditions = tf.expand_dims(conditions, -1)
         if self.mode == 'time':
             # reshape for deeper layers
-            conditions = tf.image.resize(
-                conditions, (self.z_dim, self.time_frames), method='nearest'
-            )
+            if not self.embed_time:
+                conditions = tf.image.resize(
+                    conditions, (self.z_dim, self.time_frames),
+                    method='nearest'
+                )
+            else:
+                pass
+                # tf.reshape here or tf.keras.layers.Flatten() in the __init__
+                # embed_time into something -- see attention
+                # reshape again
 
         conditions = tf.nn.softmax(conditions, axis=1)
         # to have the right dimension [batch, time, cond, channels]
@@ -153,9 +172,10 @@ class FilmAttention(tf.keras.Model):
         gammas = self.gammas
         betas = self.betas
         conditions = self.prepare_cond(conditions)
-        gammas = matmul_time(conditions, gammas)
-        betas = matmul_time(conditions, betas)
-        keys = tf.concat([gammas, betas], axis=-1)
-        gammas, _ = self.attention([gammas, keys, x])
-        betas, _ = self.attention([betas, keys, x])
+        gammas = my_matmul(conditions, gammas)
+        betas = my_matmul(conditions, betas)
+        # only tile is different
+        # keys = tf.concat([gammas, betas], axis=-1)
+        # gammas, _ = self.attention([gammas, keys, x])
+        # betas, _ = self.attention([betas, keys, x])
         return tf.add(betas, tf.multiply(x, gammas))

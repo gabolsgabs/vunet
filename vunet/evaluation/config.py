@@ -7,7 +7,7 @@ class config(Config):
     groups = ['standard', 'conditioned', 'attention']
 
     MODEL_NAME = ''
-    RESULTS_NAME = 'results_dali_per_feature.pkl'
+    RESULTS_NAME = 'results_dali_x4.pkl'
     CONFIG = 'sdp'
     CONDITION = 'phonemes'
     PER_FEATURE = False

@@ -24,9 +24,10 @@ def u_net_conv_block(
     #     do_time_attention=config.TIME_ATTENTION,
     #     do_freq_attention=config.FREQ_ATTENTION,
     # )([x, input_conditions])
-    x = FilmAttention(
-        type_gammas_betas=config.FILM_TYPE
-    )([x, input_conditions])
+    if 'latent' not in config.NAME or n_filters == 512:
+        x = FilmAttention(
+            type_gammas_betas=config.FILM_TYPE, in_freq=config.FREQ_ATTENTION
+        )([x, input_conditions])
     x = get_activation(activation)(x)
     return x
 

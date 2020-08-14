@@ -39,10 +39,10 @@ class config(Config):
     N_EPOCH = 1000
     AUG = True
 
-    # Total = 515
+    # Total = 513
     TEST = .89      # 101 tracks
-    VAL = .863      # Val < x < Test -> 98
-    TRAIN = .6      # Train < x Val -> 309
+    VAL = .88      # Val < x < Test -> with .863 = 98  with .88 = 30
+    TRAIN = .7      # 488 -> Train < x < Val -> 297 or 357
 
     # checkpoints
     EARLY_STOPPING_MIN_DELTA = 1e-5
