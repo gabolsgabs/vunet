@@ -10,7 +10,7 @@ import seaborn as sns
 
 def plot(data, y_labels, title):
     fig, ax = plt.subplots()
-    x_labels = [title[:-1]+'_'+str(i) for i in range(data.shape[0]+1)]
+    x_labels = [title[:-1] + "_" + str(i) for i in range(data.shape[0] + 1)]
     ax.set_xticks(np.arange(len(x_labels)))
     ax.set_xticklabels(x_labels)
     ax.set_yticks(np.arange(len(y_labels)))
@@ -23,8 +23,8 @@ def plot(data, y_labels, title):
 
 def createdf(data):
     data = np.array(data)
-    df = pd.DataFrame(data=data[1:,1:], index=data[1:,0], columns=data[0,1:])
-    df['values'] = df['values'].astype(np.float)
+    df = pd.DataFrame(data=data[1:, 1:], index=data[1:, 0], columns=data[0, 1:])
+    df["values"] = df["values"].astype(np.float)
     # df['mean'] = df['mean'].astype(np.float)
     # df['std'] = df['std'].astype(np.float)
     return df
@@ -32,123 +32,159 @@ def createdf(data):
 
 def createdfcrr(data):
     data = np.array(data)
-    df = pd.DataFrame(data=data[1:,1:], index=data[1:,0], columns=data[0,1:])
-    df['fix'] = df['fix'].astype(np.float)
-    df['cc'] = df['cc'].astype(np.float)
-    df['cd'] = df['cd'].astype(np.float)
-    df['sd'] = df['sd'].astype(np.float)
-    df['sc'] = df['sc'].astype(np.float)
+    df = pd.DataFrame(data=data[1:, 1:], index=data[1:, 0], columns=data[0, 1:])
+    df["fix"] = df["fix"].astype(np.float)
+    df["cc"] = df["cc"].astype(np.float)
+    df["cd"] = df["cd"].astype(np.float)
+    df["sd"] = df["sd"].astype(np.float)
+    df["sc"] = df["sc"].astype(np.float)
     # df['mean'] = df['mean'].astype(np.float)
     # df['std'] = df['std'].astype(np.float)
     return df
-
 
 
 def ms(data, c, t, md, rt, mt, addmt):
     mean = rt[t][md][mt][0]
     std = rt[t][md][mt][1]
     if addmt:
-        data.append([c , t, md, mt, mean-std])
-        data.append([c , t, md, mt, mean])
-        data.append([c , t, md, mt, mean+std])
+        data.append([c, t, md, mt, mean - std])
+        data.append([c, t, md, mt, mean])
+        data.append([c, t, md, mt, mean + std])
     else:
-        data.append([c , t, md, mean-std])
-        data.append([c , t, md, mean])
-        data.append([c , t, md, mean+std])
+        data.append([c, t, md, mean - std])
+        data.append([c, t, md, mean])
+        data.append([c, t, md, mean + std])
     return data
 
 
 def evolution2pandas(output):
-    data = [['', 'Percentage', 'task', 'model', 'SAR', 'SDR', 'SIR']]
-    m = ['no_vocals_adapt_cnn_nfai_05_57-0.00448.h5',
-         'no_vocals_adapt_cnn_nfa_1_106-0.00426.h5',
-         'no_vocals_adapt_cnn_nfai_15_169-0.00422.h5',
-         'no_vocals_adapt_cnn_nfai_3_349-0.00416.h5',
-         'no_vocals_adapt_cnn_nfai_5_576-0.00406.h5']
-    model = 'nfa'
+    data = [["", "Percentage", "task", "model", "SAR", "SDR", "SIR"]]
+    m = [
+        "no_vocals_adapt_cnn_nfai_05_57-0.00448.h5",
+        "no_vocals_adapt_cnn_nfa_1_106-0.00426.h5",
+        "no_vocals_adapt_cnn_nfai_15_169-0.00422.h5",
+        "no_vocals_adapt_cnn_nfai_3_349-0.00416.h5",
+        "no_vocals_adapt_cnn_nfai_5_576-0.00406.h5",
+    ]
+    model = "nfa"
     i = 0
     for t in output:
-        tmp = output[t]['3c']['no_vocals_n_99-0.00434.json']
-        if t != 'vocals':
-            data.append([i, '0%', t, '3cN', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
-            data.append([i, '0%', t, '3cF', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
+        tmp = output[t]["3c"]["no_vocals_n_99-0.00434.json"]
+        if t != "vocals":
+            data.append(
+                [i, "0%", t, "3cN", tmp["sar"][0], tmp["sdr"][0], tmp["sir"][0]]
+            )
+            data.append(
+                [i, "0%", t, "3cF", tmp["sar"][0], tmp["sdr"][0], tmp["sir"][0]]
+            )
         else:
-            data.append([i, '0%', t, '3c+vN', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
-            data.append([i, '0%', t, '3c+vF', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
+            data.append(
+                [i, "0%", t, "3c+vN", tmp["sar"][0], tmp["sdr"][0], tmp["sir"][0]]
+            )
+            data.append(
+                [i, "0%", t, "3c+vF", tmp["sar"][0], tmp["sdr"][0], tmp["sir"][0]]
+            )
 
         i += 1
 
     for v in m:
         for t in output:
-            c = v.split('_')[-2]
-            v = v.replace('.h5', '.json')
-            if 'nfai' in v:
-                tmp = output[t][model+'i'][v]
+            c = v.split("_")[-2]
+            v = v.replace(".h5", ".json")
+            if "nfai" in v:
+                tmp = output[t][model + "i"][v]
             else:
                 tmp = output[t][model][v]
-            if t != 'vocals':
-                data.append([i, c+'0%', t, '3cN', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
+            if t != "vocals":
+                data.append(
+                    [i, c + "0%", t, "3cN", tmp["sar"][0], tmp["sdr"][0], tmp["sir"][0]]
+                )
             else:
-                data.append([i, c+'0%', t, '3c+vN', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
+                data.append(
+                    [
+                        i,
+                        c + "0%",
+                        t,
+                        "3c+vN",
+                        tmp["sar"][0],
+                        tmp["sdr"][0],
+                        tmp["sir"][0],
+                    ]
+                )
             i += 1
 
-
-    m = ['no_vocals_adapt_cnn_fai_05_58-0.00542.h5',
-         'no_vocals_adapt_cnn_fai_1.h5',
-         'no_vocals_adapt_cnn_fai_15_74-0.00539.h5',
-         'no_vocals_adapt_cnn_fai_3.h5',
-         'no_vocals_adapt_cnn_fai_5_475-0.00537.h5']
-    model = 'fai'
+    m = [
+        "no_vocals_adapt_cnn_fai_05_58-0.00542.h5",
+        "no_vocals_adapt_cnn_fai_1.h5",
+        "no_vocals_adapt_cnn_fai_15_74-0.00539.h5",
+        "no_vocals_adapt_cnn_fai_3.h5",
+        "no_vocals_adapt_cnn_fai_5_475-0.00537.h5",
+    ]
+    model = "fai"
     for v in m:
         for t in output:
-            v = v.replace('.h5', '.json')
-            c = v.split('_')[5].replace('.json', '')
+            v = v.replace(".h5", ".json")
+            c = v.split("_")[5].replace(".json", "")
             tmp = output[t][model][v]
-            if t != 'vocals':
-                data.append([i, c+'0%', t, '3cF', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
+            if t != "vocals":
+                data.append(
+                    [i, c + "0%", t, "3cF", tmp["sar"][0], tmp["sdr"][0], tmp["sir"][0]]
+                )
             else:
-                data.append([i, c+'0%', t, '3c+vF', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
+                data.append(
+                    [
+                        i,
+                        c + "0%",
+                        t,
+                        "3c+vF",
+                        tmp["sar"][0],
+                        tmp["sdr"][0],
+                        tmp["sir"][0],
+                    ]
+                )
             i += 1
 
-
-    m = ['vocals_prog01_05.h5',
-         'vocals_prog01_1.h5',
-         'vocals_prog01_15.h5',
-         'vocals_prog01_3_23-0.00422.h5',
-         'vocals_prog01_5_42-0.00406.h5']
-    t = 'vocals'
-    model = 'vocals_prog01'
-    data.append([i, '0%', t, 'Just_Vocals', 0, 0, 0])
+    m = [
+        "vocals_prog01_05.h5",
+        "vocals_prog01_1.h5",
+        "vocals_prog01_15.h5",
+        "vocals_prog01_3_23-0.00422.h5",
+        "vocals_prog01_5_42-0.00406.h5",
+    ]
+    t = "vocals"
+    model = "vocals_prog01"
+    data.append([i, "0%", t, "Just_Vocals", 0, 0, 0])
     for v in m:
-        v = v.replace('.h5', '.json')
-        c = v.split('_')[2].replace('.json', '')
+        v = v.replace(".h5", ".json")
+        c = v.split("_")[2].replace(".json", "")
         tmp = output[t][model][v]
-        data.append([i, c+'0%', t, 'Just_Vocals', tmp['sar'][0], tmp['sdr'][0], tmp['sir'][0]])
+        data.append(
+            [i, c + "0%", t, "Just_Vocals", tmp["sar"][0], tmp["sdr"][0], tmp["sir"][0]]
+        )
         i += 1
     data = np.array(data)
-    df = pd.DataFrame(data=data[1:,1:], index=data[1:,0], columns=data[0,1:])
-    df['SAR'] = df['SAR'].astype(np.float)
-    df['SIR'] = df['SIR'].astype(np.float)
-    df['SDR'] = df['SDR'].astype(np.float)
-
+    df = pd.DataFrame(data=data[1:, 1:], index=data[1:, 0], columns=data[0, 1:])
+    df["SAR"] = df["SAR"].astype(np.float)
+    df["SIR"] = df["SIR"].astype(np.float)
+    df["SDR"] = df["SDR"].astype(np.float)
 
 
 def result2pandas_means(rt):
     # data = [['', 'task', 'model', 'metric', 'mean', 'std']]
-    data = [['', 'task', 'model', 'metric', 'values']]
-    data_sar = [['', 'task', 'model', 'values']]
-    data_sir = [['', 'task', 'model', 'values']]
-    data_sdr = [['', 'task', 'model', 'values']]
+    data = [["", "task", "model", "metric", "values"]]
+    data_sar = [["", "task", "model", "values"]]
+    data_sir = [["", "task", "model", "values"]]
+    data_sdr = [["", "task", "model", "values"]]
     c = 0
     for t in rt:
         for md in rt[t]:
             for mt in rt[t][md]:
                 data = ms(data, c, t, md, rt, mt, True)
-                if 'sdr' in mt:
+                if "sdr" in mt:
                     data_sdr = ms(data_sdr, c, t, md, rt, mt, False)
-                elif 'sar' in mt:
+                elif "sar" in mt:
                     data_sar = ms(data_sar, c, t, md, rt, mt, False)
-                elif 'sir' in mt:
+                elif "sir" in mt:
                     data_sir = ms(data_sir, c, t, md, rt, mt, False)
                 c += 1
     df = createdf(data)
@@ -158,21 +194,21 @@ def result2pandas_means(rt):
 
 
 def details2pandas_everthing(d):
-    data = [['', 'task', 'model', 'metric', 'values']]
-    data_sar = [['', 'task', 'model', 'values']]
-    data_sir = [['', 'task', 'model', 'values']]
-    data_sdr = [['', 'task', 'model', 'values']]
+    data = [["", "task", "model", "metric", "values"]]
+    data_sar = [["", "task", "model", "values"]]
+    data_sir = [["", "task", "model", "values"]]
+    data_sdr = [["", "task", "model", "values"]]
     c = 0
     for md in d:
         for t in d[md]:
             for mt in d[md][t]:
                 for v in d[md][t][mt]:
                     data.append([c, t, md, mt, v])
-                    if 'sdr' in mt:
+                    if "sdr" in mt:
                         data_sdr.append([c, t, md, v])
-                    elif 'sar' in mt:
+                    elif "sar" in mt:
                         data_sar.append([c, t, md, v])
-                    elif 'sir' in mt:
+                    elif "sir" in mt:
                         data_sir.append([c, t, md, v])
                     c += 1
     df = createdf(data)
@@ -189,10 +225,10 @@ def details2pandas_everthing(d):
 
 
 def details2pandas_corr(d):
-    data = [['song', 'task', 'fix', 'sc', 'sd', 'cd', 'cc', 'metric']]
-    data_sar = [['song', 'task', 'fix', 'sc', 'sd', 'cd', 'cc']]
-    data_sir = [['song', 'task', 'fix', 'sc', 'sd', 'cd', 'cc']]
-    data_sdr = [['song', 'task', 'fix', 'sc', 'sd', 'cd', 'cc']]
+    data = [["song", "task", "fix", "sc", "sd", "cd", "cc", "metric"]]
+    data_sar = [["song", "task", "fix", "sc", "sd", "cd", "cc"]]
+    data_sir = [["song", "task", "fix", "sc", "sd", "cd", "cc"]]
+    data_sdr = [["song", "task", "fix", "sc", "sd", "cd", "cc"]]
     sar = []
     sir = []
     sdr = []
@@ -200,28 +236,28 @@ def details2pandas_corr(d):
     for md in d:
         for t in d[md]:
             for mt in d[md][t]:
-                if 'sdr' in mt:
+                if "sdr" in mt:
                     o.append([t, md])
                     sdr.append(d[md][t][mt])
-                if 'sir' in mt:
+                if "sir" in mt:
                     sir.append(d[md][t][mt])
-                if 'sar' in mt:
+                if "sar" in mt:
                     sar.append(d[md][t][mt])
     sar = np.array(sar)
     sir = np.array(sir)
     sdr = np.array(sdr)
     o = np.array(o)
 
-    for i in ['bass', 'drums', 'vocals', 'rest']:
+    for i in ["bass", "drums", "vocals", "rest"]:
         for c, j in enumerate(sar[np.where(o == i)[0]].T):
             data_sar.append([c, i, j[0], j[1], j[2], j[3], j[4]])
-            data.append([c, i, j[0], j[1], j[2], j[3], j[4], 'sar'])
+            data.append([c, i, j[0], j[1], j[2], j[3], j[4], "sar"])
         for c, j in enumerate(sir[np.where(o == i)[0]].T):
             data_sir.append([c, i, j[0], j[1], j[2], j[3], j[4]])
-            data.append([c, i, j[0], j[1], j[2], j[3], j[4], 'sir'])
+            data.append([c, i, j[0], j[1], j[2], j[3], j[4], "sir"])
         for c, j in enumerate(sdr[np.where(o == i)[0]].T):
             data_sdr.append([c, i, j[0], j[1], j[2], j[3], j[4]])
-            data.append([c, i, j[0], j[1], j[2], j[3], j[4], 'sdr'])
+            data.append([c, i, j[0], j[1], j[2], j[3], j[4], "sdr"])
 
     df = createdfcrr(data)
     dfsar = createdfcrr(data_sar)
@@ -248,21 +284,23 @@ def details2pandas_corr(d):
     return dfsar, dfsir, dfsdr, df
 
 
+if __name__ == "__main__":
+    conditions = [
+        np.array(i).astype(np.float)
+        for i in list(itertools.product([0, 1], repeat=4))
+        if np.sum(i) <= 1
+    ]
 
-if __name__ == '__main__':
-    conditions = [np.array(i).astype(np.float)
-                  for i in list(itertools.product([0, 1], repeat=4))
-                  if np.sum(i) <= 1]
+    labels_1 = ["Nothing", "Voice", "Rest", "Drums", "Bass"]
 
-    labels_1 = ['Nothing', 'Voice', 'Rest', 'Drums', 'Bass']
-
-    path_base = '/u/anasynth/meseguerbrocal/models/source_separation/conditioned/'
-    path_model = path_base + 'musdb_split/sas_ts/sas_12-0.00383.h5'
+    path_base = "/u/anasynth/meseguerbrocal/models/source_separation/conditioned/"
+    path_model = path_base + "musdb_split/sas_ts/sas_12-0.00383.h5"
 
     model = load_model(path_model, custom_objects={"tf": tf})
     model_cond = Model(
         inputs=model.inputs[1],
-        outputs=[model.layers[10].output, model.layers[11].output])
+        outputs=[model.layers[10].output, model.layers[11].output],
+    )
 
     n_gb = list(K.int_shape(model_cond.output[0]))[-1]
 
@@ -272,5 +310,9 @@ if __name__ == '__main__':
     for i, c in enumerate(conditions):
         print(i, c)
         g, b = model_cond.predict(c.reshape(1, 1, -1))
-        gammas[i, ] = np.squeeze(g)
-        betas[i, ] = np.squeeze(b)
+        gammas[
+            i,
+        ] = np.squeeze(g)
+        betas[
+            i,
+        ] = np.squeeze(b)
