@@ -8,8 +8,7 @@ def get_lock():
     try:
         gpu_id_locked = gpl.get_gpu_lock(gpu_device_id=-1, soft=False)
     except gpl.NoGpuManager:
-        print("no gpu manager available - will use all available GPUs",
-              file=sys.stderr)
+        print("no gpu manager available - will use all available GPUs", file=sys.stderr)
     except gpl.NoGpuAvailable:
         # there is no GPU available for locking, continue with CPU
         comp_device = "/cpu:0"

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-'''
+"""
 Adaptation of the AutoPool1D for tensorflow 2
 
 Autopool: Adaptive pooling operators for multiple instance learning
 
 https://github.com/marl/autopool
 https://arxiv.org/abs/1804.10070
-'''
+"""
 
 from tensorflow.keras import backend as K
 from tensorflow.keras import initializers, constraints, regularizers
@@ -14,16 +14,20 @@ from tensorflow.keras.layers import Layer, InputSpec
 
 
 class AutoPool1D(Layer):
-    '''Automatically tuned soft-max pooling.
+    """Automatically tuned soft-max pooling.
     This layer automatically adapts the pooling behavior to interpolate
     between mean- and max-pooling for each dimension.
-    '''
-    def __init__(self, axis=0,
-                 kernel_initializer='zeros',
-                 kernel_constraint=None,
-                 kernel_regularizer=None,
-                 **kwargs):
-        '''
+    """
+
+    def __init__(
+        self,
+        axis=0,
+        kernel_initializer="zeros",
+        kernel_constraint=None,
+        kernel_regularizer=None,
+        **kwargs
+    ):
+        """
         Parameters
         ----------
         axis : int
@@ -32,10 +36,10 @@ class AutoPool1D(Layer):
         kernel_regularizer: Regularizer function applied to the weights matrix
         kernel_constraint: Constraint function applied to the weights matrix
         kwargs
-        '''
+        """
 
-        if 'input_shape' not in kwargs and 'input_dim' in kwargs:
-            kwargs['input_shape'] = (kwargs.pop('input_dim'), )
+        if "input_shape" not in kwargs and "input_dim" in kwargs:
+            kwargs["input_shape"] = (kwargs.pop("input_dim"),)
 
         super(AutoPool1D, self).__init__(**kwargs)
 
@@ -50,11 +54,13 @@ class AutoPool1D(Layer):
         assert len(input_shape) >= 3
         input_dim = input_shape[-1]
 
-        self.kernel = self.add_weight(shape=(1, input_dim),
-                                      initializer=self.kernel_initializer,
-                                      name='kernel',
-                                      regularizer=self.kernel_regularizer,
-                                      constraint=self.kernel_constraint)
+        self.kernel = self.add_weight(
+            shape=(1, input_dim),
+            initializer=self.kernel_initializer,
+            name="kernel",
+            regularizer=self.kernel_regularizer,
+            constraint=self.kernel_constraint,
+        )
         self.input_spec = InputSpec(min_ndim=2, axes={-1: input_dim})
         self.built = True
 
@@ -68,13 +74,10 @@ class AutoPool1D(Layer):
 
     def get_config(self):
         config = {
-            'kernel_initializer': initializers.serialize(
-                self.kernel_initializer),
-            'kernel_constraint': constraints.serialize(
-                self.kernel_constraint),
-            'kernel_regularizer': regularizers.serialize(
-                self.kernel_regularizer),
-            'axis': self.axis
+            "kernel_initializer": initializers.serialize(self.kernel_initializer),
+            "kernel_constraint": constraints.serialize(self.kernel_constraint),
+            "kernel_regularizer": regularizers.serialize(self.kernel_regularizer),
+            "axis": self.axis,
         }
 
         base_config = super(AutoPool1D, self).get_config()
